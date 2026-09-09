@@ -1,0 +1,127 @@
+Aufruf: date [OPTION]... [+FORMAT]
+  oder: date [OPTION]... [MMTThhmm[[CC]JJ][.ss]]
+Aktuelles Datum und Zeit im angegebenen FORMAT anzeigen.
+Mit -s oder mit [MMTThhmm[[CC]JJ][.ss]] wird das Datum oder
+die Zeit zuerst geändert.
+
+Erforderliche Argumente für lange Optionen sind auch für kurze erforderlich.
+  -d, --date=ZEICHENKETTE
+         durch ZEICHENKETTE angegebene Zeit anzeigen, nicht „jetzt“
+      --debug
+         Das eingelesene Datum kommentieren und auf der
+         Standardfehlerausgabe vor fragwürdiger Verwendung warnen
+  -f, --file=DATEI
+         wie --date für jede Zeile in DATEI; falls
+         DATEI „-“ ist, dann Namen aus der
+         Standardeingabe lesen
+  -I[ZEITSPEZ], --iso-8601[=ZEITSPEZ]
+         Datum/Zeit im ISO-8601-Format ausgeben. ZEITSPEZ='date' (Vorgabe),
+         'hours', 'minutes', 'seconds', oder 'ns' für Datum und Zeit mit der
+         angegebenen Präzision. Beispiel: 2006-08-14T02:34:56-06:00
+       --resolution
+          verfügbare Auflösung für Zeitstempel anzeigen
+          Beispiel: 0.000000001
+  -R, --rfc-email
+         Datumsausgabe gemäß RFC 5322 anzeigen
+         Beispiel: Mon, 14 Aug 2006 02:34:56 +0000
+      --rfc-3339=ZEITSPEZ
+         Datumsausgabe gemäß RFC 3339 anzeigen;
+         ZEITSPEZ=„date“, „seconds“ oder „ns“ für
+         Datum und Zeit mit angegebener Genauigkeit.
+         Beispiel: 2006-08-14 02:34:56-06:00
+  -r, --reference=DATEI
+         Zeit der letzten Änderung der DATEI anzeigen
+  -s, --set=ZEICHENKETTE     Zeit gemäß ZEICHENKETTE setzen
+  -u, --utc, --universal
+          Coordinated Universal Time anzeigen oder setzen
+      --help
+         diese Hilfe anzeigen und beenden
+      --version
+         Versionsinformation anzeigen und beenden
+
+Alle Optionen, die das anzuzeigende Datum angeben, schließen sich
+gegenseitig aus, z.B. --date, --file, --reference, --resolution.
+
+FORMAT bestimmt die Ausgabe. Interpretierte Angaben sind:
+
+  %%   wörtliches %
+  %a   abgekürzter Name des Wochentags der Locale (z.B. Son)
+  %A   voller Name des Wochentags der Locale, (z. B. Freitag)
+  %b   abgekürzter Monatsname der Locale (z. B. Nov)
+  %B   voller Monatsname der Locale, variable Länge (z. B. November)
+  %c   Datum und Zeit der Locale (z. B. Fr, 18. Nov 2005 15:05:42)
+  %C   Jahrhundert; wie %Y, aber ohne die letzten beiden Stellen (z.B. 20)
+  %d   Tag des Monats (z.B. 01)
+  %D   amerikanisches Datumsformat (mehrdeutig); dasselbe wie %m/%d/%y
+  %e   Tag des Monats, mit Leerzeichen aufgefüllt; wie %_d
+  %F   volles Datum; dasselbe wie %+4Y-%m-%d
+  %g   2-stelliges Jahr der ISO‐Wochennummer (mehrdeutig; 00-99); siehe %G
+  %G   Jahr der ISO‐Wochennummer; normalerweise nur mit %V benutzt
+  %h   dasselbe wie %b
+  %H   Stunde (00..23)
+  %I   Stunde (01..12)
+  %j   Tag des Jahres (001..366)
+  %k   Stunde, mit Leerzeichen aufgefüllt ( 0..23); dasselbe wie %_H
+  %l   Stunde, mit Leerzeichen aufgefüllt ( 1..12); dasselbe wie %_I
+  %m   Monat (01..12)
+  %M   Minute (00..59)
+  %n   Zeilenvorschub („newline“)
+  %N   Nanosekunden (000000000..999999999)
+  %p   das Äquivalent von AM oder PM in der Locale; leer wenn unbekannt
+  %P   wie %p, aber in Kleinbuchstaben
+  %q   Quartal (1..4)
+  %r   Zeit im 12‐Stunden‐Format (z.B. 03:11:30)
+  %R   Zeit im 24‐Stunden‐Format; dasselbe wie %H:%M
+  %s   Sekunden seit der „Epoche“ (1970-01-01 00:00 UTC)
+  %S   Sekunde (00..60)
+  %t   horizontaler Tabulator
+  %T   Zeit; dasselbe wie %H:%M:%S
+  %u   Tag der Woche (1..7); 1 steht für Montag
+  %U   Wochennummer des Jahres mit Sonntag als erstem Tag der Woche (00..53)
+  %V   ISO‐Wochennummer mit Montag als erstem Tag der Woche (01..53)
+  %w   Tag der Woche (0..6); 0 steht für Sonntag
+  %W   Wochennummer des Jahres mit Montag als erstem Tag der Woche (00..53)
+  %x   Datum in der Locale (kann mehrdeutig sein, z.B. 18.11.2005)
+  %X   Zeit in der Locale (z.B. 15:14:33)
+  %y   die letzten zwei Ziffern des Jahres (mehrdeutig; 00..99)
+  %Y   Jahr
+  %z     +hhmm numerische Zeitzone (z. B. +0100)
+  %:z    +hh:mm numerische Zeitzone (z. B. +01:00)
+  %::z   +hh:mm:ss numerische Zeitzone (z. B. +01:00:00)
+  %:::z  numerische Zeitzone mit :, so genau wie nötig (z. B. -04 oder +05:30)
+  %Z     alphabetische Zeitzonenabkürzung (z. B. CET)
+
+Die Vorgabe ist, numerische Felder mit Nullen aufzufüllen.
+Die folgenden optionalen Flags können „%“ folgen:
+
+  -  (Bindestrich/Minus) Feld nicht auffüllen
+  _  (Unterstrich) Feld mit Leerzeichen auffüllen
+  0  (Null) mit Nullen auffüllen
+  +  mit Nullen auffüllen, und „+“ vor Jahr mit mehr als 4 Ziffern schreiben
+  ^  wenn möglich Großbuchstaben benutzen
+  #  wenn möglich Groß- und Kleinbuchstaben vertauschen
+
+Nach jedem Flag kommt eine optionale Feldbreite, als Dezimalzahl;
+dann ein optionaler Modifikator, der entweder E oder O ist:
+E: die alternativen Repräsentationen der Locale verwenden (wenn vorhanden)
+O: die alternativen numerischen Symbole der Locale verwenden (wenn vorhanden)
+
+Beispiele:
+Die Sekunden seit der „Epoche“ (Beginn der Unix-Zeitrechnung,
+1970-01-01 UTC) in ein Datum konvertieren:
+  $ date --date='@2147483647'
+
+Die Zeit an der Westküste der USA anzeigen (verwenden Sie tzselect(1), um
+TZ zu bestimmen)
+  $ TZ='America/Los_Angeles' date
+
+Die lokale Zeit für 09:00 Uhr nächsten Freitag in Los Angeles anzeigen:
+  $ date --date='TZ="America/Los_Angeles" 09:00 next Fri'
+
+Melden Sie Fehler im Programm (auf Englisch) an »bug-coreutils@gnu.org«.
+Melden Sie Fehler in der Übersetzung an <translation-team-de@lists.sourceforge.net>.
+GNU coreutils-Homepage: https://www.gnu.org/software/coreutils/
+Allgemeine Hilfe zur Benutzung von GNU-Software: https://www.gnu.org/gethelp/
+Melden Sie Übersetzungsfehler für %s an <translation-team-de@lists.sourceforge.net>
+Die vollständige Dokumentation ist hier: <https://www.gnu.org/software/coreutils/date>
+oder auch lokal mittels „info '(coreutils) date invocation'“

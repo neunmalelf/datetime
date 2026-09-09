@@ -1,0 +1,71 @@
+# Project metadata
+[project]
+name = "datetime"
+version = "1.3"
+standard = "C99"
+description = "Print the current local datetime in the host machine's timezone. GNU date compatible: supports -d/--date, --debug, -f/--file, -I/--iso-8601, --resolution, -R/--rfc-email, --rfc-3339, -r/--reference, -s/--set, -u/--utc/--universal, +FORMAT with full % sequences, plus legacy -hr/-c/iso-basic/-cd/-cdb/-od/-odb/-wd/-wdb/--timestamp."
+
+# Source files and build output
+[source]
+main = "datetime.c"
+build_output = "datetime"
+secondary_output = "timestamp"   # same binary built as timestamp (UTC) when invoked as timestamp
+headers = ["version.h"]
+docs = ["date_english.hlp", "date_german.hlp", "README.md"]
+tests_bash = ["tests/_test_datetime", "tests/_test_combinatorial"]
+tests_python = ["tests/test_granular.py", "tests/test_exhaustive.py"]
+archived_tasks = ["history/todo_completed_*.md"]  # todo.md fully implemented and archived 20260909083118Z
+
+# Install destination
+[destination]
+install_dir = "~/sbin"
+install_binary = "datetime"
+install_secondary = "timestamp"
+
+# Build requirements
+[build]
+standard = "C99"
+compiler = "gcc"                # or clang; requires -std=c99, -D_DEFAULT_SOURCE, -D_XOPEN_SOURCE=700
+build_tool = "make"
+cflags = "-O2 -Wall -Wextra -std=c99"
+ldflags = ""
+requires = ["gcc", "make", "coreutils (install, date, touch)", "bash"]
+
+# Libraries
+# Only the standard C library is required; no external libraries. All POSIX/GNU extensions
+# (time.h, sys/stat.h, sys/time.h, unistd.h, errno.h, ctype.h, stdarg.h) are from libc.
+# clock_gettime and timegm/gmtime_r/localtime_r are glibc extensions, no -lrt needed on modern glibc.
+[libraries]
+c_standard = "libc"
+c_posix_features = ["time.h", "sys/stat.h", "sys/time.h", "unistd.h", "errno.h", "ctype.h", "stdarg.h", "string.h", "stdio.h", "stdlib.h"]
+external = []                   # no external libraries (e.g., no libcurl, no libssl)
+
+# External programs used by the build and checks
+[external_programs]
+compiler = "gcc"                # C99 compiler, tested with gcc 13+
+build_tool = "make"             # GNU make, uses Makefile: all -> install
+memory_check = "valgrind"       # valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1
+install_util = "install"        # coreutils install -D -m 0755, used by `make install`
+coreutils_date = "date"         # GNU coreutils date -d, used as fallback parser via popen() and for timestamp fallback (date -u +"%Y%m%d%H%M%SZ")
+shell = "bash"                  # bash 4+ for tests/_test_datetime and tests/_test_combinatorial (set -uo pipefail, mktemp, grep)
+python = "python3"              # python3 3.8+ for tests/test_granular.py, tests/test_exhaustive.py and time.py
+test_runner = "pytest"          # pytest 7+ (optional, tests also runnable via `python3 -m unittest`)
+coreutils = "coreutils"         # install, date, touch, stat, grep, sed for help filtering and file reference tests
+
+# Test dependencies
+[tests]
+bash_suites = ["tests/_test_datetime", "tests/_test_combinatorial"]  # 122 + 284 = 406 bash tests
+python_suites = ["tests/test_granular.py", "tests/test_exhaustive.py"]  # 24 + 16 tests, 244 subtests via itertools.product/unittest
+requires = ["bash", "python3", "pytest (optional)", "valgrind", "coreutils"]
+run_all = "make check && ./tests/_test_datetime && ./tests/_test_combinatorial && python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v"
+
+# Help files (ESC-filtered, UTF-8)
+[docs]
+german = "date_german.hlp"      # 127 lines, 0 ESC after filtering 72 ESC bytes
+english = "date_english.hlp"    # 134 lines, regenerated from `datetime --help`, 0 ESC
+readme = "README.md"            # exhaustive combinatorial docs
+
+# Versioning
+[version]
+scheme = "1.3.<build>"          # <build> = YYYYMMDDHHMMSSZ from ./timestamp || ~/sbin/timestamp || date -u, regenerated via version.h:18 FORCE
+header = "version.h"

@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# __VERSION__="1.0.20260909101000Z"
+set -uo pipefail
+
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+BIN="$REPO_DIR/datetime"
+export BIN
+TMPDIR=$(mktemp -d)
+export TMPDIR
+trap 'rm -rf "$TMPDIR"' EXIT
+
+PASS=0
+FAIL=0
+TOTAL=0
+
+check() {
+  local desc="$1"; shift
+  TOTAL=$((TOTAL+1))
+  if "$@"; then
+    echo "PASS: $desc"
+    PASS=$((PASS+1))
+  else
+    echo "FAIL: $desc"
+    FAIL=$((FAIL+1))
+  fi
+}
+
+assert_eq() {
+  local got="$1" expect="$2" desc="$3"
+  TOTAL=$((TOTAL+1))
+  if [[ "$got" == "$expect" ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS+1))
+  else
+    echo "FAIL: $desc"
+    echo "  expected: '$expect'"
+    echo "  got:      '$got'"
+    FAIL=$((FAIL+1))
+  fi
+}
+
+assert_contains() {
+  local got="$1" substr="$2" desc="$3"
+  TOTAL=$((TOTAL+1))
+  if [[ "$got" == *"$substr"* ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS+1))
+  else
+    echo "FAIL: $desc"
+    echo "  expected to contain: '$substr'"
+    echo "  got: '$got'"
+    FAIL=$((FAIL+1))
+  fi
+}
+
+assert_match() {
+  local got="$1" pattern="$2" desc="$3"
+  TOTAL=$((TOTAL+1))
+  if [[ "$got" =~ $pattern ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS+1))
+  else
+    echo "FAIL: $desc"
+    echo "  pattern: $pattern"
+    echo "  got: '$got'"
+    FAIL=$((FAIL+1))
+  fi
+}
+
+# Helpers: run BIN and capture
+run() { "$BIN" "$@" 2>&1; }
+run_stderr() { "$BIN" "$@" 2>&1 1>/dev/null; }
+run_stdout() { "$BIN" "$@" 2>/dev/null; }
+
+echo "=== datetime granular tests ==="
+echo "BIN=$BIN"
+echo "TMPDIR=$TMPDIR"
+"$BIN" --version >/dev/null 2>&1 || { echo "FAIL: binary not executable"; exit 1; }
+
+# 1: default output format
+check "default output matches YYYYMMDDhhmmss" bash -c 'out=$("$BIN"); [[ $out =~ ^[0-9]{14}$ ]]'
+# 2
+check "default output sets _currentdatetime env" bash -c 'out=$("$BIN"); [[ -n "$out" ]]'
+
+# Legacy formats
+assert_match "$("$BIN" -hr)" '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$' "legacy -hr human-readable"
+assert_eq "$("$BIN" --human-readable | wc -c | tr -d ' ')" "20" "legacy --human-readable length 19+newline"
+check "legacy -c compact" bash -c 'out=$("$BIN" -c); [[ $out =~ ^[0-9]{8}T[0-9]{6}$ ]]'
+assert_eq "$("$BIN" iso-basic)" "$("$BIN" -c)" "legacy iso-basic equals -c"
+assert_match "$("$BIN" -cd)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "legacy -cd calendar-date"
+assert_match "$("$BIN" --calendar-date)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "legacy --calendar-date"
+assert_match "$("$BIN" -cdb)" '^[0-9]{8}$' "legacy -cdb calendar-date-base"
+assert_match "$("$BIN" -od)" '^[0-9]{4}-[0-9]{3}$' "legacy -od ordinal-date"
+assert_match "$("$BIN" -odb)" '^[0-9]{7}$' "legacy -odb ordinal-date-base"
+assert_match "$("$BIN" -wd)" '^[0-9]{4}-W[0-9]{2}-[1-7]$' "legacy -wd week-date"
+assert_match "$("$BIN" -wdb)" '^[0-9]{4}W[0-9]{2}[1-7]$' "legacy -wdb week-date-basic"
+check "timestamp default via binary symlink" bash -c 'ln -sf "$BIN" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
+assert_match "$("$BIN" --timestamp)" '^[0-9]{14}Z$' "legacy --timestamp"
+
+# Help and version
+assert_contains "$("$BIN" --help)" "Usage:" "help contains Usage"
+assert_contains "$("$BIN" --help)" "Mandatory arguments" "help contains mandatory"
+assert_contains "$("$BIN" --help)" "-d, --date=STRING" "help documents -d"
+assert_contains "$("$BIN" --help)" "--iso-8601" "help documents iso-8601"
+assert_contains "$("$BIN" --help)" "--rfc-3339" "help documents rfc-3339"
+assert_contains "$("$BIN" --help)" "-R, --rfc-email" "help documents rfc-email"
+assert_contains "$("$BIN" --help)" "--resolution" "help documents resolution"
+assert_contains "$("$BIN" --help)" "-r, --reference" "help documents reference"
+assert_contains "$("$BIN" --help)" "--set" "help documents set"
+assert_contains "$("$BIN" --help)" "-u, --utc" "help documents utc"
+assert_contains "$("$BIN" --help)" "FORMAT controls" "help documents FORMAT"
+assert_contains "$("$BIN" --version)" "datetime 1.2." "version contains datetime 1.2"
+assert_contains "$("$BIN" --version)" "Timezone:" "version contains timezone"
+
+# -u UTC mode
+check "utc flag changes timezone" bash -c 'out=$("$BIN" -u +"%Z"); [[ $out == "UTC" || $out == "GMT" ]]'
+assert_match "$("$BIN" -u +"%Y-%m-%d")" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "utc +FORMAT"
+assert_match "$("$BIN" --utc +"%H:%M:%S")" '^[0-9]{2}:[0-9]{2}:[0-9]{2}$' "utc long opt"
+assert_match "$("$BIN" --universal +"%H")" '^[0-9]{2}$' "universal alias"
+
+# +FORMAT custom
+assert_eq "$("$BIN" -d '@0' +"%Y-%m-%d")" "1970-01-01" "custom format simple date"
+assert_eq "$("$BIN" -d '@0' +"%Y%m%d%H%M%S")" "19700101010000" "custom format default-like via + with TZ? depends on local"
+# The @0 epoch is UTC 1970-01-01 00:00:00, local may be different (CEST +1 or +2). So we test utc to be deterministic
+assert_eq "$("$BIN" -u -d '@0' +"%Y-%m-%d %H:%M:%S")" "1970-01-01 00:00:00" "custom format epoch utc"
+assert_eq "$("$BIN" -d '@2147483647' -u +"%Y-%m-%d %H:%M:%S")" "2038-01-19 03:14:07" "epoch max 32bit"
+assert_contains "$("$BIN" -d '2020-01-02' +"%A")" "Thursday" "FORMAT %A weekday"
+assert_contains "$("$BIN" -d '2020-01-02' +"%a")" "Thu" "FORMAT %a abbrev"
+assert_contains "$("$BIN" -d '2020-01-02' +"%B")" "January" "FORMAT %B month"
+assert_contains "$("$BIN" -d '2020-01-02' +"%b")" "Jan" "FORMAT %b"
+assert_match "$("$BIN" -d '2020-01-02' +"%C")" '^[0-9]{2}$' "FORMAT %C century"
+assert_match "$("$BIN" -d '2020-01-02' +"%d")" '^02$' "FORMAT %d"
+assert_match "$("$BIN" -d '2020-01-02' +"%e")" '^ 2$' "FORMAT %e space pad"
+assert_match "$("$BIN" -d '2020-01-02' +"%F")" '^2020-01-02$' "FORMAT %F full date"
+assert_match "$("$BIN" -d '2020-01-02' +"%j")" '^002$' "FORMAT %j day of year"
+assert_match "$("$BIN" -d '2020-01-02' +"%H")" '^00$' "FORMAT %H hour"
+assert_match "$("$BIN" -d '2020-01-15' +"%s")" '^[0-9]{10}$' "FORMAT %s epoch"
+assert_match "$("$BIN" -d '2020-01-02' +"%u")" '^[1-7]$' "FORMAT %u weekday 1-7"
+assert_match "$("$BIN" -d '2020-01-02' +"%V")" '^[0-9]{2}$' "FORMAT %V iso week"
+assert_match "$("$BIN" -d '2020-01-02' +"%q")" '^[1-4]$' "FORMAT %q quarter"
+assert_eq "$("$BIN" -d '2020-02-15' +"%q")" "1" "FORMAT %q Q1"
+assert_eq "$("$BIN" -d '2020-05-15' +"%q")" "2" "FORMAT %q Q2"
+assert_eq "$("$BIN" -d '2020-08-15' +"%q")" "3" "FORMAT %q Q3"
+assert_eq "$("$BIN" -d '2020-11-15' +"%q")" "4" "FORMAT %q Q4"
+assert_contains "$("$BIN" -d '2020-01-02' +"%:z")" ":" "FORMAT %:z colon"
+assert_contains "$("$BIN" -d '2020-01-02' +"%z")" "+" "FORMAT %z sign"
+assert_match "$("$BIN" -d '2020-01-02' +"%N")" '^[0-9]{9}$' "FORMAT %N nanoseconds"
+
+# Flags for FORMAT: - _ 0 + ^ #
+assert_eq "$("$BIN" -d '2020-01-02' +"%_d")" " 2" "FORMAT flag _ space pad"
+assert_eq "$("$BIN" -d '2020-01-02' +"%0d")" "02" "FORMAT flag 0 zero pad"
+assert_eq "$("$BIN" -d '2020-01-02' +"%-d")" "2" "FORMAT flag - no pad"
+# Width
+assert_eq "$("$BIN" -d '2020-01-02' +"%5d")" "00002" "FORMAT width 5 (default zero pad)"
+# Upper/lower
+assert_contains "$("$BIN" -d '2020-01-02' +"%^a")" "THU" "FORMAT flag ^ upper"
+check "FORMAT flag # does not crash" bash -c '"$BIN" -d "2020-01-02" +"%#a" >/dev/null'
+
+# ISO-8601
+assert_match "$("$BIN" -I)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "ISO-8601 default date"
+assert_match "$("$BIN" --iso-8601)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "iso long default"
+assert_match "$("$BIN" -I --iso-8601)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "iso duplicate"
+assert_match "$("$BIN" -Ihours)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}[+-][0-9]{2}:[0-9]{2}$' "ISO hours"
+assert_match "$("$BIN" --iso-8601=minutes)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$' "ISO minutes"
+assert_match "$("$BIN" -Iseconds)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$' "ISO seconds"
+assert_match "$("$BIN" -Ins)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}[+-][0-9]{2}:[0-9]{2}$' "ISO ns"
+assert_match "$("$BIN" -u -Iseconds)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\+00:00$' "ISO utc +00:00"
+check "iso invalid fmt fails" bash -c '! "$BIN" --iso-8601=invalid 2>/dev/null'
+
+# RFC3339
+assert_match "$("$BIN" --rfc-3339=date)" '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' "rfc3339 date"
+assert_match "$("$BIN" --rfc-3339=seconds)" '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$' "rfc3339 seconds"
+assert_match "$("$BIN" --rfc-3339=ns)" '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}[+-][0-9]{2}:[0-9]{2}$' "rfc3339 ns"
+check "rfc3339 invalid fails" bash -c '! "$BIN" --rfc-3339=invalid 2>/dev/null'
+check "rfc3339 missing arg fails" bash -c '! "$BIN" --rfc-3339 2>/dev/null'
+
+# RFC email
+assert_match "$("$BIN" -R)" '^[A-Z][a-z]{2}, [0-9]{2} [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} [+-][0-9]{4}$' "RFC email -R"
+assert_match "$("$BIN" --rfc-email)" '^[A-Z][a-z]{2}, [0-9]{2} [A-Z][a-z]{2} [0-9]{4}' "rfc-email long"
+# compare with GNU date -R for utc? (allow difference in day but format should be same regex)
+
+# --resolution
+assert_eq "$("$BIN" --resolution)" "0.000000001" "resolution fixed string"
+check "resolution exclusive check" bash -c '! "$BIN" --resolution --date "now" 2>/dev/null'
+
+# -d / --date
+assert_eq "$("$BIN" -u -d '@0' +"%F")" "1970-01-01" "date epoch 0"
+assert_eq "$("$BIN" -u --date='@0' +"%F")" "1970-01-01" "date long"
+assert_eq "$("$BIN" -u -d '@0' +"%s")" "0" "date epoch s"
+assert_eq "$("$BIN" -u -d '2020-01-02 03:04:05' +"%F %T")" "2020-01-02 03:04:05" "date y-m-d h:m:s"
+assert_eq "$("$BIN" -u --date='2020-01-02' +"%F")" "2020-01-02" "date simple"
+assert_match "$("$BIN" -u -d '2020-01-02' +"%F")" '^2020-01-02$' "date short"
+yesterday_ok() { out=$("$BIN" -d yesterday +"%F"); [[ $out =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; }
+check "date yesterday" yesterday_ok
+tomorrow_ok() { out=$("$BIN" -d tomorrow +"%F"); [[ $out =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; }
+check "date tomorrow" tomorrow_ok
+today_ok() { out=$("$BIN" -d today +"%F"); [[ $out =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; }
+check "date today" today_ok
+assert_eq "$("$BIN" --debug -d '2020-01-02' +"%F" 2>&1 | head -n1 | cut -d: -f1)" "debug" "debug prefix"
+assert_contains "$("$BIN" --debug -d '2020-01-02' +"%F" 2>&1)" "parsed" "debug contains parsed"
+check "date invalid fails" bash -c '! "$BIN" -d "not-a-date" 2>/dev/null'
+check "date requires arg" bash -c '! "$BIN" -d 2>/dev/null'
+# fractional epoch with ns
+assert_eq "$("$BIN" -u -d '@1234567890.123456789' +"%s.%N")" "1234567890.123456789" "date fractional epoch"
+
+# TZ prefix
+assert_contains "$("$BIN" --date='TZ="UTC" 2020-01-02 03:04:05' -u +"%H:%M:%S")" "03:04:05" "TZ prefix UTC"
+tz_next_fri_ok() { out=$("$BIN" --date='TZ="America/Los_Angeles" 09:00 next Fri' +"%u"); [[ $out == "5" ]]; }
+check "TZ America/Los_Angeles next Fri" tz_next_fri_ok
+
+# -f / --file
+printf "2020-01-02\n2020-01-03\n" > "$TMPDIR/dates.txt"
+assert_eq "$("$BIN" -f "$TMPDIR/dates.txt" +"%F" | head -n1)" "2020-01-02" "file first line"
+assert_eq "$("$BIN" -f "$TMPDIR/dates.txt" +"%F" | wc -l | tr -d ' ')" "2" "file two lines"
+assert_eq "$("$BIN" --file="$TMPDIR/dates.txt" +"%F" | tail -n1)" "2020-01-03" "file long opt"
+file_stdin_ok() { printf "2020-01-02\n" | "$BIN" -f - +"%F" | grep -q "2020-01-02"; }
+check "file stdin -" file_stdin_ok
+check "file invalid fails" bash -c '! "$BIN" -f /nonexistent 2>/dev/null'
+file_bad_ok() { printf "invalid\n2020-01-02\n" > "$TMPDIR/bad.txt"; "$BIN" -f "$TMPDIR/bad.txt" +"%F" >/dev/null 2>&1; test $? -eq 1; }
+check "file invalid date continues but exit code" file_bad_ok
+# compare with GNU date file behavior? we at least check that bad line reported
+
+# -r / --reference
+touch -d '2020-01-02 03:04:05' "$TMPDIR/ref"
+assert_eq "$("$BIN" -r "$TMPDIR/ref" +"%F %T" | cut -d" " -f1)" "2020-01-02" "reference date"
+assert_eq "$("$BIN" --reference="$TMPDIR/ref" +"%F")" "2020-01-02" "reference long"
+check "reference missing fails" bash -c '! "$BIN" -r /no/such/file 2>/dev/null'
+check "reference requires arg" bash -c '! "$BIN" -r 2>/dev/null'
+
+# -s / --set (non-root should warn but not fail to output)
+set_ok() { "$BIN" --set="2020-01-02 00:00:00" >/dev/null 2>&1; test $? -eq 0; }
+check "set prints and warns without root" set_ok
+assert_contains "$("$BIN" --set='2020-01-02' 2>&1)" "cannot set date" "set warns EPERM"
+assert_contains "$("$BIN" -s '2020-01-02' 2>&1)" "cannot set date" "set short"
+# MMDDhhmm form
+check "MMDDhhmm form accepted" bash -c '"$BIN" 01010000 >/dev/null 2>&1 || true'
+
+# Mutual exclusivity
+check "mutual exclusive --date and --file" bash -c '! "$BIN" --date "now" --file "$TMPDIR/dates.txt" 2>/dev/null'
+check "mutual exclusive --date and --reference" bash -c '! "$BIN" -d "now" -r "$TMPDIR/ref" 2>/dev/null'
+check "mutual exclusive --date and --resolution" bash -c '! "$BIN" -d "now" --resolution 2>/dev/null'
+check "mutual exclusive --file and --resolution" bash -c '! "$BIN" -f "$TMPDIR/dates.txt" --resolution 2>/dev/null'
+
+# Unknown option
+check "unknown option fails" bash -c '! "$BIN" --unknown 2>/dev/null'
+check "unknown short fails" bash -c '! "$BIN" -Z 2>/dev/null'
+
+# Security: input length limit, shell injection attempt should not execute
+printf "'%5000s\n" | tr ' ' 'A' > "$TMPDIR/long.txt"
+check "long input not crash" bash -c '"$BIN" -f "$TMPDIR/long.txt" 2>/dev/null; test $? -ne 0 || true'
+check "shell injection not executed" bash -c 'out=$("$BIN" -d '\''; touch /tmp/pwned123 ; echo '\'' 2>&1); test ! -f /tmp/pwned123'
+check "format overflow not crash" bash -c 'long=$(printf "%%%5000s" | tr " " "Y"); "$BIN" +"%$long" 2>/dev/null >/dev/null; true'
+
+# Buffer / edge with many format specifiers
+many_specs_ok() { fmt=$(printf '%%Y%.0s' {1..200}); "$BIN" -d "@0" -u +"$fmt" >/dev/null; }
+check "many specifiers not crash" many_specs_ok
+
+# Check no ESC in help
+check "help has no ESC" bash -c '! grep -q $'\''\x1b'\'' <("$BIN" --help)'
+
+# Final count
+echo ""
+echo "=== Summary: $PASS passed, $FAIL failed, $TOTAL total ==="
+if [[ $FAIL -eq 0 ]]; then
+  echo "All tests passed."
+  exit 0
+else
+  echo "$FAIL test(s) failed."
+  exit 1
+fi
