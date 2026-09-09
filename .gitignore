@@ -1,4 +1,10 @@
 # Build artifacts
 datetime
+timestamp
+datetime.exe
+timestamp.exe
 *.o
 version.h
+.pytest_cache/
+__pycache__/
+.opencode/

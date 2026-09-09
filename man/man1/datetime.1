@@ -1,0 +1,345 @@
+.TH DATETIME 1 "September 2026" "datetime 2.0" "User Commands"
+.SH NAME
+datetime, timestamp \- print or set the system date and time
+.SH SYNOPSIS
+.B datetime
+[\fIOPTION\fR]... [\fI+FORMAT\fR]
+.br
+.B datetime
+[\fIOPTION\fR]... [\fIMMDDhhmm\fR[[\fICC\fR]\fIYY\fR][\fI.ss\fR]]
+.br
+.B timestamp
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+\fBdatetime\fR displays the current date and time in the given \fIFORMAT\fR,
+or sets the system clock when \fB-s\fR / \fB--set\fR or a \fIMMDDhhmm\fR argument is given.
+Without options it prints the local time as \fIYYYYMMDDhhmmss\fR.
+.PP
+\fBtimestamp\fR is the same binary invoked as \fBtimestamp\fR (symlink or copy):
+it always prints UTC as \fIYYYYMMDDhhmmssZ\fR (compact seconds, trailing \fBZ\fR).
+The same output is obtained with \fBdatetime --timestamp\fR.
+.PP
+The program is written in strict \fBC99\fR (\-std=c99, only \fIlibc\fR, no external
+libraries) and exposes GNU \fBdate\fR compatible options.
+.SH OPTIONS
+Mandatory arguments to long options are mandatory for short options too.
+.TP
+.BR \-d ", " --date =\fISTRING\fR
+display time described by \fISTRING\fR, not `now'. \fISTRING\fR may be:
+.RS
+.IP \(bu 2
+\fB@\fR\fIEPOCH\fR[\fB.\fINANO\fR]  – seconds since 1970-01-01 00:00 UTC, e.g. @0, @2147483647, @1234567890.123456789
+.IP \(bu 2
+\fIYYYY-MM-DD\fR, \fIYYYY-MM-DD HH:MM:SS\fR, \fIYYYY/MM/DD\fR, \fIMM/DD/YY\fR, ISO \fBT\fR and RFC 2822 variants
+.IP \(bu 2
+\fInow\fR, \fItoday\fR, \fIyesterday\fR, \fItomorrow\fR
+.IP \(bu 2
+any string understood by GNU \fBdate -d\fR as fallback (e.g. \fInext Fri\fR, \fI+1 day\fR, \fI2 weeks ago\fR)
+.IP \(bu 2
+\fITZ="\fR\fIZone\fR\fB" \fR\fISTRING\fR – temporarily sets \fBTZ\fR for parsing (e.g. TZ="America/Los_Angeles" 09:00 next Fri)
+.RE
+.TP
+.BR --debug
+annotate the parsed date and warn about questionable usage on standard error.
+.TP
+.BR \-f ", " --file =\fIDATEFILE\fR
+like \fB--date\fR once for each line of \fIDATEFILE\fR. If \fIDATEFILE\fR is \fB-\fR, read from standard input.
+.TP
+.BI \-I "[\fIFMT\fR]" ", " --iso-8601 "[\fB=\fIFMT\fR]"
+output date/time in ISO 8601 format.
+\fIFMT\fR=\fBdate\fR (default), \fBhours\fR, \fBminutes\fR, \fBseconds\fR, or \fBns\fR.
+Example: 2006-08-14T02:34:56-06:00 (ns adds \fI.000000000\fR).
+.TP
+.B --resolution
+output the available resolution of timestamps. Example: \fI0.000000001\fR (nanosecond).
+.TP
+.BR \-R ", " --rfc-email
+output date and time in RFC 5322 format. Example: \fIMon, 14 Aug 2006 02:34:56 +0000\fR
+.TP
+.BI --rfc-3339= FMT
+output date/time in RFC 3339 format. \fIFMT\fR=\fBdate\fR, \fBseconds\fR, or \fBns\fR.
+Example: \fI2006-08-14 02:34:56-06:00\fR
+.TP
+.BR \-r ", " --reference =\fIFILE\fR
+display the last modification time of \fIFILE\fR.
+.TP
+.BR \-s ", " --set =\fISTRING\fR
+set time described by \fISTRING\fR (requires root; otherwise warns and prints what would be set).
+.TP
+.BR \-u ", " --utc ", " --universal
+print or set Coordinated Universal Time (UTC).
+.TP
+.B --help
+display this help and exit.
+.TP
+.B --version
+output version information and exit (e.g. \fIdatetime 2.0.20260909083730Z\fR).
+.SS "Legacy output formats (kept for compatibility)"
+.TP
+(default)
+\fIYYYYMMDDhhmmss\fR
+.TP
+.BR \-hr ", " --human-readable
+\fIYYYY-MM-DD hh:mm:ss\fR
+.TP
+.BR \-c ", " --compact ", " iso-basic
+\fIYYYYMMDDThhmmss\fR (ISO 8601 basic)
+.TP
+.BR \-cd ", " --calendar-date
+\fIYYYY-MM-DD\fR
+.TP
+.BR \-cdb ", " --calendar-date-base
+\fIYYYYMMDD\fR
+.TP
+.BR \-od ", " --ordinal-date
+\fIYYYY-DDD\fR (001..366)
+.TP
+.BR \-odb ", " --ordinal-date-base
+\fIYYYYDDD\fR
+.TP
+.BR \-wd ", " --week-date
+\fIYYYY-Www-D\fR (week 01..53, 1=Mon..7=Sun)
+.TP
+.BR \-wdb ", " --week-date-basic
+\fIYYYYWwwD\fR
+.TP
+.B --timestamp
+\fIYYYYMMDDhhmmssZ\fR (UTC, compact seconds for micro version)
+.PP
+All options that specify the date to display are mutually exclusive:
+\fB--date\fR, \fB--file\fR, \fB--reference\fR, \fB--resolution\fR.
+.SH FORMAT
+\fIFORMAT\fR controls the output. Interpreted sequences are:
+.TP
+.B %%
+a literal %
+.TP
+.B %a
+locale's abbreviated weekday name (e.g., Sun)
+.TP
+.B %A
+locale's full weekday name (e.g., Sunday)
+.TP
+.B %b
+locale's abbreviated month name (e.g., Jan)
+.TP
+.B %B
+locale's full month name (e.g., January)
+.TP
+.B %c
+locale's date and time (e.g., Thu Mar 3 23:05:25 2005)
+.TP
+.B %C
+century; like %Y, except omit last two digits (e.g., 20)
+.TP
+.B %d
+day of month (e.g., 01)
+.TP
+.B %D
+date; same as %m/%d/%y
+.TP
+.B %e
+day of month, space padded; same as %_d
+.TP
+.B %F
+full date; same as %+4Y-%m-%d
+.TP
+.B %g
+last two digits of year of ISO week number (e.g., 00..99); see %G
+.TP
+.B %G
+year of ISO week number; normally useful only with %V
+.TP
+.B %h
+same as %b
+.TP
+.B %H
+hour (00..23)
+.TP
+.B %I
+hour (01..12)
+.TP
+.B %j
+day of year (001..366)
+.TP
+.B %k
+hour, space padded ( 0..23); same as %_H
+.TP
+.B %l
+hour, space padded ( 1..12); same as %_I
+.TP
+.B %m
+month (01..12)
+.TP
+.B %M
+minute (00..59)
+.TP
+.B %n
+a newline
+.TP
+.B %N
+nanoseconds (000000000..999999999)
+.TP
+.B %p
+locale's equivalent of either AM or PM; blank if not known
+.TP
+.B %P
+like %p, but lower case
+.TP
+.B %q
+quarter of year (1..4)
+.TP
+.B %r
+locale's 12-hour clock time (e.g., 11:11:04 PM)
+.TP
+.B %R
+24-hour hour and minute; same as %H:%M
+.TP
+.B %s
+seconds since the Epoch (1970-01-01 00:00 UTC)
+.TP
+.B %S
+second (00..60)
+.TP
+.B %t
+a tab
+.TP
+.B %T
+time; same as %H:%M:%S
+.TP
+.B %u
+day of week (1..7); 1 is Monday
+.TP
+.B %U
+week number of year, with Sunday as first day of week (00..53)
+.TP
+.B %V
+ISO week number, with Monday as first day of week (01..53)
+.TP
+.B %w
+day of week (0..6); 0 is Sunday
+.TP
+.B %W
+week number of year, with Monday as first day of week (00..53)
+.TP
+.B %x
+locale's date representation
+.TP
+.B %X
+locale's time representation
+.TP
+.B %y
+last two digits of year (00..99)
+.TP
+.B %Y
+year
+.TP
+.B %z
++hhmm numeric time zone (e.g., -0400)
+.TP
+.B %:z
++hh:mm numeric time zone (e.g., -04:00)
+.TP
+.B %::z
++hh:mm:ss numeric time zone (e.g., -04:00:00)
+.TP
+.B %:::z
+numeric time zone with : to necessary precision (e.g., -04, +05:30)
+.TP
+.B %Z
+alphabetic time zone abbreviation (e.g., EDT)
+.PP
+By default, date pads numeric fields with zeroes.
+The following optional flags may follow `%`:
+.RS
+.IP \(bu 2
+\fB-\fR (hyphen) do not pad the field
+.IP \(bu 2
+\fB_\fR (underscore) pad with spaces
+.IP \(bu 2
+\fB0\fR (zero) pad with zeros
+.IP \(bu 2
+\fB+\fR pad with zeros, and put `+' before future years with >4 digits
+.IP \(bu 2
+\fB^\fR use upper case if possible
+.IP \(bu 2
+\fB#\fR use opposite case if possible
+.RE
+.PP
+After any flags comes an optional field width, as a decimal number;
+then an optional modifier, which is either \fBE\fR to use the locale's alternate
+representations if available, or \fBO\fR to use the locale's alternate numeric
+symbols if available.
+.SH EXAMPLES
+Convert seconds since the Epoch to a date:
+.PP
+.RS
+.nf
+$ date --date='@2147483647'
+$ datetime -d '@2147483647' -u
+.fi
+.RE
+.PP
+Show the time on the west coast of the US:
+.PP
+.RS
+.nf
+$ TZ='America/Los_Angeles' date
+$ datetime -d 'TZ="America/Los_Angeles" now'
+.fi
+.RE
+.PP
+Legacy and GNU examples:
+.PP
+.RS
+.nf
+$ datetime                        # 20260909103730
+$ datetime -hr                    # 2026-09-09 10:37:30
+$ datetime -c                     # 20260909T103730
+$ datetime --iso-8601=ns          # 2026-09-09T10:37:30.123456789+02:00
+$ datetime -R                     # Wed, 09 Sep 2026 10:37:30 +0200
+$ datetime --rfc-3339=seconds     # 2026-09-09 10:37:30+02:00
+$ datetime -r Makefile +"%F %T"   # file mtime
+$ datetime -f dates.txt +"%F"
+$ printf "2020-01-02\\n" | datetime -f - +"%F"
+$ datetime -u +"%Y-%m-%d %H:%M:%S %Z"
+$ datetime --debug -d "2020-01-02"
+$ timestamp                       # 20260909083730Z (UTC)
+$ datetime --timestamp
+.fi
+.RE
+.PP
+Timestamp and microversion:
+.PP
+.RS
+.nf
+$ ~/sbin/timestamp                # 20260909083730Z
+$ TS=$(~/sbin/timestamp); echo "2.0.$TS" # 2.0.20260909083730Z
+$ make                            # regenerates version.h with fresh BUILD
+.fi
+.RE
+.SH FILES
+.I date_english.hlp
+\- English help, ESC-filtered, 134 lines
+.br
+.I date_german.hlp
+\- German help, ESC-filtered, 127 lines
+.br
+.I version.h
+\- generated header with \fBVERSION_BUILD\fR (YYYYMMDDHHMMSSZ)
+.br
+.I ~/sbin/datetime
+\- installed binary (via \fBmake install\fR)
+.br
+.I ~/sbin/timestamp
+\- same binary installed as \fBtimestamp\fR
+.SH "SEE ALSO"
+.BR date (1),
+.BR strftime (3),
+.BR tzselect (1)
+.br
+Full documentation in \fBREADME.md:1\fR and \fBdate_english.hlp:1\fR.
+.SH AUTHOR
+Written for the \fBdatetime\fR project (C99, 2.0). Uses only \fIlibc\fR.
+.br
+Report bugs to the local issue tracker; GNU compatibility bugs to bug-coreutils@gnu.org.

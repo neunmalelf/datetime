@@ -2,6 +2,7 @@
 # __VERSION__="1.0.20260909104000Z"
 set -uo pipefail
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+export REPO_DIR
 BIN="$REPO_DIR/datetime"
 export BIN
 TMPDIR=$(mktemp -d)
@@ -237,7 +238,7 @@ check "help contains legacy" bash -c '"$BIN" --help | grep -q "Legacy output"'
 check "version contains timezone" bash -c '"$BIN" --version | grep -q "Timezone:"'
 
 # ---- 14. Binary symlink timestamp alias ----
-check "timestamp alias via symlink" bash -c 'ln -sf "$BIN" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
+check "timestamp alias via symlink" bash -c 'cp "$REPO_DIR/timestamp" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
 check "timestamp alias --timestamp" bash -c '"$BIN" --timestamp | grep -q "Z$"'
 
 # ---- 15. Triple combos with -u --debug + date source + format ----

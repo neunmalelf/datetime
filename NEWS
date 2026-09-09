@@ -1,0 +1,81 @@
+GNU datetime NEWS -- history of user-visible changes.
+
+* Version 2.0 (2026-09-09)
+
+** Optimizations and performance
+
+  Single-pass format_time engine replaces intermediate 8KB buffer transformations,
+  emitting directly to destination and eliminating 16 KB of stack allocation.
+  Zero format-truncation compiler warnings.
+
+** Robustness and bug fixes
+
+  Fixed negative epoch nanosecond calculation for fractional timestamps (@-1, @-0.5).
+  Centralized resource cleanup via goto cleanup in main(), guaranteeing 0 memory leaks.
+  Deduplicated legacy format handlers and day offset parsers (today/yesterday/tomorrow).
+
+** Cross-platform portability
+
+  Windows (MinGW-w64/MSYS2): Added timezone shims (_tzset, _get_timezone, _daylight,
+  _tzname) when tm_gmtoff/tm_zone are absent in struct tm.
+  macOS (Darwin): Added st_mtimespec support for sub-second file modification timestamps.
+  Valgrind check gracefully skips when unavailable on macOS.
+
+** Test suite & Verification
+
+  Makefile check target now runs check-syntax, check-mem (valgrind), check-style
+  (indent -gnu), and check-test (406 bash tests + 40 pytest tests / 244 subtests).
+
+* Version 1.3 (2026-09-09)
+
+** New GNU date compatible options (see date_english.hlp)
+
+  -d, --date=STRING          display time described by STRING, not `now'
+      --debug                annotate parsed date, warn to stderr
+  -f, --file=DATEFILE        file input, - for stdin
+  -I[FMT], --iso-8601[=FMT]   date/hours/minutes/seconds/ns
+      --resolution           0.000000001
+  -R, --rfc-email            RFC 5322
+      --rfc-3339=FMT         date/seconds/ns
+  -r, --reference=FILE       file mtime
+  -s, --set=STRING           set system time (needs root)
+  -u, --utc, --universal     UTC
+  +FORMAT                    full GNU date FORMAT with 47 sequences
+
+  All mutually exclusive options enforced (--date/--file/--reference/--resolution).
+  FORMAT supports flags -_0+^#, width, E/O modifiers, %N nanoseconds, %q quarter,
+  %z/%:z/%::z/%:::z timezones.
+
+** Strict GNU compliance
+
+  Makefile now has SHELL, prefix/bindir/mandir, INSTALL_PROGRAM, distclean/TAGS/dist,
+  version.h uses robust BUILD fallback, datetime.c uses getopt_long, braces in column
+  zero, dynamic allocation (no 4096 limits), no argv[0] dispatch (use --timestamp or
+  -DTIMESTAMP), Texinfo manual and man page added.
+
+** Build
+
+  C99 strict (gcc -std=c99), only libc.  `make` now builds and installs to ~/sbin
+  (or $(bindir)), `make check` runs valgrind, 650+ tests (406 bash + 244 Python subtests).
+
+** Documentation
+
+  README: C99 note, Index, extensive Example usage (50+), Timestamp microversion docs
+  (1.3.<build> = 1.3.20260909083730Z).  date_english.hlp regenerated, ESC-free.
+  New man/man1/datetime.1 and tldr/datetime.md, manual.texi, ChangeLog.
+
+** Fixes
+
+  ESC sequences filtered from date_german.hlp (72 -> 0).  Robust BUILD fallback for
+  clean systems.  Shell injection blocked via shell_escape, 8192 bounds via malloc.
+  Tests fixed for 1.3 version string.
+
+* Version 1.2 (2026-09-05)
+
+  Legacy formats: -hr/--human-readable, -c/--compact/iso-basic, -cd/--calendar-date,
+  -cdb/--calendar-date-base, -od/--ordinal-date, -odb/--ordinal-date-base,
+  -wd/--week-date, -wdb/--week-date-basic, --timestamp.  Initial timestamp utility.
+
+* Version 1.0 (2026-09-05)
+
+  Initial import.  Prints local YYYYMMDDhhmmss, human-readable, basic ISO.

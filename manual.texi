@@ -1,0 +1,168 @@
+\input texinfo
+@setfilename datetime.info
+@settitle datetime Manual
+@documentencoding UTF-8
+@set VERSION 2.0
+
+@titlepage
+@title datetime
+@subtitle Print or set the system date and time
+@subtitle Version 2.0
+@author Neun MalElf
+@end titlepage
+
+@node Top
+@top datetime
+
+This manual documents @code{datetime} version @value{VERSION}, a small C99 program that prints the current date and time. It is compatible with GNU @code{date} and keeps legacy formats.
+
+@menu
+* Overview::              What datetime does
+* Invocation::            How to run datetime
+* Options::               Command-line options
+* Format::                FORMAT sequences
+* Timestamp::             timestamp utility and microversion
+* Examples::              Extensive examples
+* GNU Compliance::        Following GNU Coding Standards
+* Copying::               License
+@end menu
+
+@node Overview
+@chapter Overview
+
+@code{datetime} displays the current date and time in the given @code{FORMAT}, or sets the system clock with @code{-s} or a @code{MMDDhhmm} argument. Without options it prints local time as @code{YYYYMMDDhhmmss}.
+@code{timestamp} is the same binary: when compiled with @code{-DTIMESTAMP} or invoked via @code{--timestamp} it prints UTC as @code{YYYYMMDDhhmmssZ}.
+
+The program is written in strict @code{C99} (@code{gcc -std=c99}, only @code{libc}) and follows @file{gnu_c_stileguide.md}.
+
+@node Invocation
+@chapter Invocation
+
+@example
+datetime [OPTION]... [+FORMAT]
+datetime [OPTION]... [MMDDhhmm[[CC]YY][.ss]]
+timestamp [OPTION]...
+@end example
+
+@node Options
+@chapter Options
+
+@table @code
+@item -d STRING
+@itemx --date=STRING
+Display time described by @var{STRING}, not `now'. @var{STRING} may be @code{@@EPOCH[.NANO]}, @code{YYYY-MM-DD}, @code{now}, @code{today}, @code{yesterday}, @code{tomorrow}, any string understood by @code{date -d}, or @code{TZ="Zone" STRING}.
+
+@item --debug
+Annotate parsed date and warn on standard error.
+
+@item -f DATEFILE
+@itemx --file=DATEFILE
+Like @code{--date} once for each line of @var{DATEFILE}. If @var{DATEFILE} is @code{-}, read stdin.
+
+@item -I[FMT]
+@itemx --iso-8601[=FMT]
+ISO 8601. @var{FMT}=@code{date} (default), @code{hours}, @code{minutes}, @code{seconds}, @code{ns}.
+
+@item --resolution
+Output resolution @code{0.000000001}.
+
+@item -R
+@itemx --rfc-email
+RFC 5322. Example @code{Mon, 14 Aug 2006 02:34:56 +0000}.
+
+@item --rfc-3339=FMT
+RFC 3339. @var{FMT}=@code{date}, @code{seconds}, @code{ns}.
+
+@item -r FILE
+@itemx --reference=FILE
+Display last modification time of @var{FILE}.
+
+@item -s STRING
+@itemx --set=STRING
+Set time described by @var{STRING} (requires root).
+
+@item -u
+@itemx --utc
+@itemx --universal
+Print or set UTC.
+
+@item --help
+Display help and exit.
+
+@item --version
+Output version.
+
+@item --timestamp
+Print UTC compact seconds @code{YYYYMMDDhhmmssZ}.
+
+@end table
+
+Legacy formats kept: @code{-hr}/@code{--human-readable}, @code{-c}/@code{--compact}/@code{iso-basic}, @code{-cd}/@code{--calendar-date}, @code{-cdb}, @code{-od}, @code{-odb}, @code{-wd}, @code{-wdb}.
+
+@node Format
+@chapter Format
+
+@code{FORMAT} controls output. Sequences are:
+
+@example
+%%  literal %    %a  abbrev weekday    %A  full weekday
+%b  abbrev month %B  full month        %c  locale datetime
+%C  century      %d  day 01            %D  %m/%d/%y
+%e  space-pad    %F  %Y-%m-%d          %g/%G ISO week year
+%H  hour 00-23   %I  01-12             %j  day of year
+%N  nanoseconds  %q  quarter 1-4       %s  seconds since Epoch
+%z  +hhmm        %:z +hh:mm           %::z +hh:mm:ss
+%:::z minimal    %Z  alphabetic TZ
+@end example
+
+Flags after @code{%}: @code{-} no pad, @code{_} space, @code{0} zero, @code{+} plus, @code{^} upper, @code{#} opposite. Then width and modifier @code{E}/@code{O}.
+
+@node Timestamp
+@chapter Timestamp and Microversion
+
+@code{timestamp} prints UTC @code{YYYYMMDDhhmmssZ} (14 digits + @code{Z}). Full version is @code{MAJOR.MINOR.TIMESTAMP}, e.g. @code{2.0.20260909083730Z}. The @code{TIMESTAMP} is regenerated each @code{make} via @file{version.h} from @code{./timestamp || ~/sbin/timestamp || date -u}. It is sortable, filename-safe, and unambiguous (@code{Z}=UTC).
+
+@example
+$ timestamp
+20260909083730Z
+$ TS=$(timestamp); echo "2.0.$TS"
+2.0.20260909083730Z
+@end example
+
+@node Examples
+@chapter Examples
+
+@example
+$ datetime                         # 20260909103730
+$ datetime -hr                     # 2026-09-09 10:37:30
+$ datetime -d "@0" -u +"%F %T"     # 1970-01-01 00:00:00
+$ datetime --debug -d "2020-01-02"
+$ datetime -Iseconds               # 2026-09-09T10:37:30+02:00
+$ datetime -R                      # Wed, 09 Sep 2026 10:37:30 +0200
+$ datetime -r Makefile +"%F"
+$ datetime -f dates.txt +"%F"
+$ datetime --resolution            # 0.000000001
+$ datetime -u +"%Y-%m-%d %H:%M:%S %Z"
+$ timestamp                        # 20260909083730Z
+@end example
+
+@node GNU Compliance
+@chapter GNU Compliance
+
+This codebase follows @file{gnu_c_stileguide.md}:
+
+@itemize
+@item @code{SHELL = /bin/sh}, standard @code{prefix}/@code{bindir}/@code{mandir}, @code{INSTALL_PROGRAM} (@pxref{Makefile Conventions})
+@item Function braces in column zero, name in column zero
+@item Dynamic allocation (no arbitrary 4096 limits) via @code{malloc}
+@item @code{getopt_long} for CLI (@pxref{Standards for Command Line Interfaces})
+@item No @code{argv[0]} dispatch (use @code{--timestamp} or @code{-DTIMESTAMP})
+@item Texinfo @file{manual.texi}, @file{ChangeLog}, @file{NEWS}, man page @file{man/man1/datetime.1}
+@end itemize
+
+@node Copying
+@chapter Copying
+
+This program is free software; see source for license.
+
+@bye

@@ -3,6 +3,7 @@
 set -uo pipefail
 
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+export REPO_DIR
 BIN="$REPO_DIR/datetime"
 export BIN
 TMPDIR=$(mktemp -d)
@@ -94,7 +95,7 @@ assert_match "$("$BIN" -od)" '^[0-9]{4}-[0-9]{3}$' "legacy -od ordinal-date"
 assert_match "$("$BIN" -odb)" '^[0-9]{7}$' "legacy -odb ordinal-date-base"
 assert_match "$("$BIN" -wd)" '^[0-9]{4}-W[0-9]{2}-[1-7]$' "legacy -wd week-date"
 assert_match "$("$BIN" -wdb)" '^[0-9]{4}W[0-9]{2}[1-7]$' "legacy -wdb week-date-basic"
-check "timestamp default via binary symlink" bash -c 'ln -sf "$BIN" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
+check "timestamp default via binary symlink" bash -c 'cp "$REPO_DIR/timestamp" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
 assert_match "$("$BIN" --timestamp)" '^[0-9]{14}Z$' "legacy --timestamp"
 
 # Help and version
@@ -109,7 +110,7 @@ assert_contains "$("$BIN" --help)" "-r, --reference" "help documents reference"
 assert_contains "$("$BIN" --help)" "--set" "help documents set"
 assert_contains "$("$BIN" --help)" "-u, --utc" "help documents utc"
 assert_contains "$("$BIN" --help)" "FORMAT controls" "help documents FORMAT"
-assert_contains "$("$BIN" --version)" "datetime 1.2." "version contains datetime 1.2"
+assert_contains "$("$BIN" --version)" "datetime 2." "version contains datetime 2."
 assert_contains "$("$BIN" --version)" "Timezone:" "version contains timezone"
 
 # -u UTC mode

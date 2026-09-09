@@ -1,0 +1,95 @@
+2026-09-09  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (VERSION_MAJOR, VERSION_MINOR): Bump 1.3 -> 2.0.
+	(format_time): Rewrite to single-pass emitter, eliminating 16 KB
+	intermediate buffer stack usage and format-truncation warnings.
+	(format_datetime_output): Extract output formatting cascade.
+	(parse_day_offset): Deduplicate today/yesterday/tomorrow parsing.
+	(set_legacy_format): Deduplicate legacy format assignments.
+	(parse_epoch): Fix negative epoch nanosecond calculation.
+	(main): Centralize resource deallocation via goto cleanup.
+	(print_timezone): Add Windows MinGW-w64 timezone compatibility shims.
+	(main): Support macOS st_mtimespec sub-second mtime resolution.
+
+	* project.toml (version, scheme): Set full 2.0.<microversion>Z format.
+	* manual.texi (VERSION): Bump 1.3 -> 2.0.
+	* man/man1/datetime.1, man/datetime.1, tldr/datetime.md: Update to 2.0.
+	* README.md: Update version 1.3 -> 2.0.
+	* NEWS: Add release notes for Version 2.0.
+	* Makefile (check-test): Add target running bash and pytest suites.
+	(check-mem): Gracefully handle missing valgrind on macOS.
+	(check): Wire check-syntax, check-mem, check-style, check-test.
+	* tests/_test_datetime, tests/test_granular.py: Update version test
+	expectations to 2.0.
+
+2026-09-09  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (debug_log, match_format, print_timezone, print_usage)
+	(print_version, get_current_timespec, trim, shell_escape)
+	(has_tz_prefix, parse_epoch, parse_with_strptime, parse_via_gnudate)
+	(parse_date_string, format_time, is_valid_iso8601_fmt)
+	(is_valid_rfc3339_fmt, main): Reformat to GNU style: put open brace
+	in column zero and function name in column zero.  Replace fixed
+	4096/8192 buffers with dynamic malloc (no arbitrary limits).  Use
+	getopt_long to decode arguments (17 Standards for Command Line
+	Interfaces).  Remove argv[0] dispatch (is_timestamp_binary) and use
+	--timestamp flag or -DTIMESTAMP compile-time.
+
+	* Makefile (SHELL, prefix, exec_prefix, bindir, mandir, man1dir)
+	(INSTALL, INSTALL_PROGRAM, INSTALL_DATA, ALL_CFLAGS, srcdir): Add
+	GNU Makefile conventions 5.1, 5.3, 5.4.  Add standard targets info,
+	dvi, distclean, mostlyclean, realclean, TAGS, dist, install-strip.
+	Use -DTIMESTAMP for timestamp binary.  Make all depend on install
+	and robust BUILD fallback.
+
+	* manual.texi: New file.  Texinfo manual for datetime/timestamp.
+	* NEWS: New file.  List user-visible changes for 1.3.
+	* man/man1/datetime.1: New file.  Man page for datetime/timestamp.
+	* tldr/datetime.md: New file.  TLDR page.
+
+2026-09-09  Neun MalElf  <neunmalelf@gmail.com>
+
+	* README.md (Build, Example usage, Timestamp utility): Add C99 note
+	with gnu_c_stileguide.md link and Index section.  Add extensive
+	Example usage (50+ examples) and Timestamp microversion docs.
+
+	* project.toml (version, scheme): Bump 1.2 -> 1.3.
+	* datetime.c (VERSION_MAJOR, VERSION_MINOR): Bump 1.2 -> 1.3.
+	* Makefile (BUILD, version.h): Robust fallback chain
+	./timestamp || ~/sbin/timestamp || date -u for clean builds.
+	* man/man1/datetime.1, tldr/datetime.md: Add proper man and tldr.
+
+	* tests/_test_datetime, tests/test_granular.py: Update version
+	expectation 1.2. -> 1. for 1.3.  Fix _d flag test.
+
+	* tests/_test_combinatorial, tests/test_exhaustive.py: New files.
+	Exhaustive combinatorial matrix (284 bash + 235 Python subtests).
+
+	* datetime.c (format_time): Handle %N/%q/%s/%z/%:z/%::z/%:::z
+	manually for portability.  Fix qbuf truncation warning.
+
+2026-09-09  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (parse_date_string, parse_epoch, parse_with_strptime)
+	(parse_via_gnudate, has_tz_prefix, format_time): Implement GNU date
+	options -d/--date, --debug, -f/--file, -I/--iso-8601, --resolution,
+	-R/--rfc-email, --rfc-3339, -r/--reference, -s/--set, -u/--utc,
+	+FORMAT, legacy -hr/-c/-cd/-cdb/-od/-odb/-wd/-wdb/--timestamp.
+	Enforce mutual exclusivity for --date/--file/--reference/--resolution.
+
+	* date_german.hlp: Filter ESC sequences (72 bytes) -> 0.
+	* date_english.hlp: Regenerate from LC_ALL=C date --help, filtered,
+	plus legacy section.  ESC-free.
+
+2026-09-05  Neun MalElf  <neunmalelf@gmail.com>
+
+	* Makefile (BUILD): Point version timestamp generation at timestamp
+	utility (UTC, trailing Z).  Use ~/sbin/timestamp or date -u fallback.
+
+	* datetime.c: Initial working version 1.0.20280905100100.  Legacy
+	formats -hr/-c/-cd/-cdb/-od/-odb/-wd/-wdb.
+
+2026-09-05  Initial import
+
+	* datetime.c, Makefile, README.md, project.toml, version.h: Initial
+	commit of datetime 1.0.

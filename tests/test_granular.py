@@ -30,7 +30,7 @@ class TestDatetimeOptions(unittest.TestCase):
     def test_version(self):
         rc, out, err = run("--version")
         self.assertEqual(rc, 0)
-        self.assertIn("datetime 1.2.", out)
+        self.assertIn("datetime 2.", out)
     def test_legacy(self):
         for args, pattern in [
             (["-hr"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"),
@@ -55,6 +55,10 @@ class TestDatetimeOptions(unittest.TestCase):
         self.assertEqual(out.strip(), "1970-01-01 00:00:00")
         rc, out, _ = run("-u", "-d", "@2147483647", '+%Y-%m-%d %H:%M:%S')
         self.assertEqual(out.strip(), "2038-01-19 03:14:07")
+        rc, out, _ = run("-u", "-d", "@-1", '+%Y-%m-%d %H:%M:%S')
+        self.assertEqual(out.strip(), "1969-12-31 23:59:59")
+        rc, out, _ = run("-u", "-d", "@-0.5", '+%Y-%m-%d %H:%M:%S.%N')
+        self.assertEqual(out.strip(), "1969-12-31 23:59:59.500000000")
     def test_format_sequences(self):
         checks = [
             (["-d", "2020-01-02", "+%A"], "Thursday"),
