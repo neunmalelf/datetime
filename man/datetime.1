@@ -15,9 +15,10 @@ datetime, timestamp \- print or set the system date and time
 or sets the system clock when \fB-s\fR / \fB--set\fR or a \fIMMDDhhmm\fR argument is given.
 Without options it prints the local time as \fIYYYYMMDDhhmmss\fR.
 .PP
-\fBtimestamp\fR is the same binary invoked as \fBtimestamp\fR (symlink or copy):
-it always prints UTC as \fIYYYYMMDDhhmmssZ\fR (compact seconds, trailing \fBZ\fR).
-The same output is obtained with \fBdatetime --timestamp\fR.
+\fBtimestamp\fR is a dedicated build of the same source (compiled with
+\fB\-DTIMESTAMP\fR): it always prints UTC as \fIYYYYMMDDhhmmssZ\fR (compact
+seconds, trailing \fBZ\fR). The same output is obtained with
+\fBdatetime --timestamp\fR.
 .PP
 The program is written in strict \fBC99\fR (\-std=c99, only \fIlibc\fR, no external
 libraries) and exposes GNU \fBdate\fR compatible options.
@@ -332,7 +333,7 @@ $ make                            # regenerates version.h with fresh BUILD
 \- installed binary (via \fBmake install\fR)
 .br
 .I ~/sbin/timestamp
-\- same binary installed as \fBtimestamp\fR
+\- dedicated \fB\-DTIMESTAMP\fR build installed as \fBtimestamp\fR
 .SH "SEE ALSO"
 .BR date (1),
 .BR strftime (3),

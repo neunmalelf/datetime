@@ -962,6 +962,53 @@ format_time (const struct timespec *ts, const char *fmt, int utc, char *out,
       memcpy (token, &fmt[start], tlen);
       token[tlen] = '\0';
 
+      /* The '+' flag is a GNU date extension that glibc/BSD strftime do not
+         understand ('+': pad with zeros, and put '+' before the year once the
+         requested width exceeds 4, the natural %Y width).  Emit it for the
+         year conversion manually; otherwise strftime leaves '%+4Y' literal. */
+      if (tlen >= 2 && token[tlen - 1] == 'Y' && strchr (token, '+') != NULL)
+	{
+	  const char *tp = token + 1;	/* skip '%' */
+	  while (*tp == '-' || *tp == '_' || *tp == '0' || *tp == '^'
+		 || *tp == '#' || *tp == '+')
+	    tp++;
+	  long width = 0;
+	  while (isdigit ((unsigned char) *tp))
+	    {
+	      width = width * 10 + (*tp - '0');
+	      tp++;
+	    }
+	  if (width <= 0)
+	    width = 4;
+	  long year = (long) tm.tm_year + 1900;
+	  char yb[40];
+	  if (year >= 0 && width > 4)
+	    {
+	      snprintf (yb, sizeof (yb), "%0*ld", (int) (width - 1), year);
+	      if (out_len + 1 + strlen (yb) >= outsz)
+		{
+		  out[outsz - 1] = '\0';
+		  return -1;
+		}
+	      out[out_len++] = '+';
+	      memcpy (out + out_len, yb, strlen (yb));
+	      out_len += strlen (yb);
+	    }
+	  else
+	    {
+	      snprintf (yb, sizeof (yb), "%0*ld", (int) width, year);
+	      size_t yl = strlen (yb);
+	      if (out_len + yl >= outsz)
+		{
+		  out[outsz - 1] = '\0';
+		  return -1;
+		}
+	      memcpy (out + out_len, yb, yl);
+	      out_len += yl;
+	    }
+	  continue;
+	}
+
       size_t rem = outsz - out_len;
       out[out_len] = '\1';
       size_t written = strftime (out + out_len, rem, token, &tm);

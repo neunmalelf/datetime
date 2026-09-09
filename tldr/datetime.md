@@ -1,6 +1,6 @@
 # datetime
 
-> Small C99 `datetime` / `timestamp` utility – prints or sets the system date and time. GNU `date` compatible, plus legacy formats. `timestamp` is the same binary (UTC `YYYYMMDDhhmmssZ`).
+> Small C99 `datetime` / `timestamp` utility – prints or sets the system date and time. GNU `date` compatible, plus legacy formats. `timestamp` is a dedicated build (`-DTIMESTAMP`, UTC `YYYYMMDDhhmmssZ`).
 
 > See also: `timestamp`, `date`.
 

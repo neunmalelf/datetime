@@ -185,6 +185,10 @@ class TestDatetimeOptions(unittest.TestCase):
         self.assertEqual(run("-d", "2020-01-02", "+%_d")[1].rstrip("\n"), " 2")
         self.assertEqual(run("-d", "2020-01-02", "+%5d")[1].strip(), "00002")
         self.assertEqual(run("-d", "2020-01-02", "+%-d")[1].strip(), "2")
+        # '+' flag (GNU extension, manually handled for %Y)
+        self.assertEqual(run("-u", "-d", "@0", "+%+4Y")[1].strip(), "1970")
+        self.assertEqual(run("-u", "-d", "@0", "+%+5Y")[1].strip(), "+1970")
+        self.assertEqual(run("-u", "-d", "@0", "+%+6Y")[1].strip(), "+01970")
     def test_percent_escapes(self):
         rc, out, _ = run("+%%")
         self.assertEqual(out.strip(), "%")
