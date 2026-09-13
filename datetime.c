@@ -23,14 +23,17 @@
 #include <sys/time.h>
 #endif
 
-// __version__ = 2.0.202090914160900
-
 #ifndef VERSION_BUILD
 #define VERSION_BUILD "00000000000000"
 #endif
 
 #define VERSION_MAJOR "2"
 #define VERSION_MINOR "0"
+
+// Full version string as a real global constant (not a comment).
+// Keep the "VERSION_MAJOR" / "VERSION_MINOR" #define lines intact: the
+// Makefile `dist' target greps them.
+static const char __version__[] = VERSION_MAJOR "." VERSION_MINOR "." VERSION_BUILD;
 
 static int g_debug = 0;
 static int g_utc = 0;
@@ -224,15 +227,15 @@ print_usage (const char *prog)
   print_timezone ();
 
   printf ("\n"
-	  "Report bugs to: bug-coreutils@gnu.org (for GNU compatibility)\n"
-	  "datetime %s.%s.%s - local implementation\n",
-	  VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD);
+	  "Report bugs to: bug-coreutils@gnu.org (GNU compatibility)\n"
+	  "datetime %s - local implementation\n",
+	  __version__);
 }
 
 static void
 print_version (void)
 {
-  printf ("datetime %s.%s.%s\n", VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD);
+  printf ("datetime %s\n", __version__);
   print_timezone ();
 }
 
