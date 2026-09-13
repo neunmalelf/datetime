@@ -64,19 +64,14 @@ TEXI2DVI = texi2dvi
 SRC     := $(srcdir)/datetime.c
 TARGETS := $(TARGET)
 
-# Build number (YYYYMMDDHHMMSSZ, UTC), evaluated once per make invocation.
-# Microversion x.x.<build> must use timestamp (UTC compact seconds).
-# Try the just-built binary first, then an installed copy, then the date -u
-# fallback so the first build on a clean system still works.  Passed to the
-# compiler with -DVERSION_BUILD instead of a generated version.h, so a manual
-#   cc -std=c99 datetime.c
-# falls back to the #ifndef VERSION_BUILD default in datetime.c.
-BUILD := $(shell ./datetime --timestamp 2>/dev/null || ~/sbin/datetime --timestamp 2>/dev/null || date -u +"%Y%m%d%H%M%SZ" 2>/dev/null || echo 20260909000000Z)
+# Version: the single source of truth is __version__ in datetime.c
+# (x.y.micro).  dist/extract it with grep; no -DVERSION_BUILD plumbing.
+VERSION := $(shell grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' $(srcdir)/datetime.c | head -1 | tr -d '"')
 
 all: $(TARGETS)
 
 $(TARGET): $(SRC)
-	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -DVERSION_BUILD=\"$(BUILD)\" -o $@ $(SRC) $(LDFLAGS)
+	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -o $@ $(SRC) $(LDFLAGS)
 
 # Implicit rule for .c.o to support VPATH (5.1)
 .c.o:
@@ -139,9 +134,7 @@ TAGS: $(SRC) $(srcdir)/manual.texi
 tags: TAGS
 
 dist: $(SRC) $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1
-	@ver=`grep '^#define VERSION_MINOR' $(srcdir)/datetime.c | sed 's/.*"\([0-9]*\)".*/\1/'`; \
-	maj=`grep '^#define VERSION_MAJOR' $(srcdir)/datetime.c | sed 's/.*"\([0-9]*\)".*/\1/'`; \
-	dir=datetime-$$maj.$$ver.$(BUILD); \
+	@dir=datetime-$(VERSION); \
 	rm -rf $$dir; mkdir -p $$dir; \
 	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $$dir/ 2>/dev/null || true; \
 	mkdir -p $$dir/man/man1 $$dir/tldr; cp -p $(srcdir)/man/man1/datetime.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $$dir/tldr/ 2>/dev/null || true; \
@@ -149,7 +142,7 @@ dist: $(SRC) $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/dateti
 
 # Syntax check only (no code generation).
 check-syntax:
-	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -DVERSION_BUILD=\"$(BUILD)\" -fsyntax-only $(SRC)
+	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -fsyntax-only $(SRC)
 
 # GNU style check (8 Formatting Your Source Code) - indent -gnu or clang-format --style=GNU
 check-style: $(SRC)

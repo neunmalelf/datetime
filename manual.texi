@@ -120,7 +120,7 @@ Flags after @code{%}: @code{-} no pad, @code{_} space, @code{0} zero, @code{+} p
 @node Timestamp
 @chapter Timestamp and Microversion
 
-@code{datetime --timestamp} prints UTC @code{YYYYMMDDhhmmssZ} (14 digits + @code{Z}). Full version is @code{MAJOR.MINOR.TIMESTAMP}, e.g. @code{2.0.20260909083730Z}. The @code{TIMESTAMP} is evaluated once per @code{make} and passed to the compiler as @code{-DVERSION_BUILD} from @code{./datetime --timestamp || ~/sbin/datetime --timestamp || date -u}. It is sortable, filename-safe, and unambiguous (@code{Z}=UTC).
+@code{datetime --timestamp} prints UTC @code{YYYYMMDDhhmmssZ} (14 digits + @code{Z}). The full version is the single @code{__version__} constant in @code{datetime.c}, e.g. @code{2.0.202609131714} (@code{x.y.micro}, micro = release date-time). Bump it there when releasing. It is sortable, filename-safe, and unambiguous (@code{Z}=UTC).
 
 @example
 $ timestamp

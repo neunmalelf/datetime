@@ -60,7 +60,7 @@
 `sudo datetime -s "2020-01-02 00:00:00"`
 `sudo datetime 09091100`
 
-- Timestamp microversion (UTC `YYYYMMDDhhmmssZ`) for `2.0.<build>`:
+- Timestamp (UTC `YYYYMMDDhhmmssZ`):
 
 `timestamp`
 `datetime --timestamp`

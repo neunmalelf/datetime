@@ -23,17 +23,9 @@
 #include <sys/time.h>
 #endif
 
-#ifndef VERSION_BUILD
-#define VERSION_BUILD "00000000000000"
-#endif
-
-#define VERSION_MAJOR "2"
-#define VERSION_MINOR "0"
-
-// Full version string as a real global constant (not a comment).
-// Keep the "VERSION_MAJOR" / "VERSION_MINOR" #define lines intact: the
-// Makefile `dist' target greps them.
-static const char __version__[] = VERSION_MAJOR "." VERSION_MINOR "." VERSION_BUILD;
+// Single source of truth for the version (x.y.micro, micro = release date).
+// Kept here on purpose: no -DVERSION_BUILD plumbing, no generated header.
+static const char *__version__ = "2.0.202609131714";
 
 static int g_debug = 0;
 static int g_utc = 0;

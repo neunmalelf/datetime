@@ -2,7 +2,9 @@
 
 A small C99 program that prints the current datetime, computed in the host machine's timezone or UTC, with full GNU `date` compatible options. Extends the original legacy formats with GNU `date` semantics (`-d`, `-f`, `-I`, `-R`, `--rfc-3339`, `-r`, `-s`, `-u`, `--debug`, `--resolution`, and custom `+FORMAT`).
 
-Legacy formats are kept for backward compatibility; new options follow the interface documented in `date_english.hlp` (English, ESC-filtered) and `date_german.hlp`.
+Legacy formats are kept for backward compatibility; new options follow the GNU `date` interface.
+
+> **Build vs. deploy:** `make` only builds `datetime` into the repo root – it does **not** install anything. Run `make install` (optionally with `PREFIX=...`) to deploy the binary and man page; `make uninstall` removes them.
 
 ## Index
 
@@ -23,7 +25,7 @@ Legacy formats are kept for backward compatibility; new options follow the inter
   * [GNU date compatible – date source](#gnu-date-compatible--date-source)
   * [File and reference](#file-and-reference)
   * [ISO-8601 / RFC / resolution / UTC](#iso-8601--rfc--resolution--utc)
-  * [Custom FORMAT](#custom-format-all-gnu-sequences-flags-width-modifiers--date_englishhlp57)
+  * [Custom FORMAT](#custom-format-all-gnu-sequences-flags-width-modifiers)
   * [Set time](#set-time-requires-root-otherwise-warns-but-prints)
   * [Error and exclusivity](#error-and-exclusivity-mutually-exclusive---date--file--reference--resolution)
 * [Timestamp utility and microversion (`x.y.<UTC>`)](#timestamp-utility-and-microversion-xyutc)
@@ -47,7 +49,7 @@ Legacy formats are kept for backward compatibility; new options follow the inter
 | `datetime -odb` / `--ordinal-date-base`    | `YYYYDDD`                     |
 | `datetime -wd` / `--week-date`             | `YYYY-Www-D` (week 01–53, day 1=Mon…7=Sun) |
 | `datetime -wdb` / `--week-date-basic`      | `YYYYWwwD`                    |
-| `datetime --timestamp` / `timestamp` binary | `YYYYMMDDhhmmssZ` (UTC)       |
+| `datetime --timestamp`                      | `YYYYMMDDhhmmssZ` (UTC)       |
 
 The timezone is used to compute the local time but is not part of the datetime output for legacy formats. It is reported by `--version` and `--help`.
 
@@ -76,7 +78,7 @@ Mandatory arguments to long options are mandatory for short options too.
 
 All options that specify the date to display are mutually exclusive: `--date`, `--file`, `--reference`, `--resolution`.
 
-`FORMAT` controls the output. Interpreted sequences are the same as GNU `date` (see `date_english.hlp`):
+`FORMAT` controls the output. Interpreted sequences are the same as GNU `date` (see `man datetime` or `date --help`):
 
 ```
 %%   literal %     %a   abbrev weekday (Sun)   %A   full weekday (Sunday)
@@ -98,7 +100,7 @@ All options that specify the date to display are mutually exclusive: `--date`, `
 
 Padding flags after `%`: `-` (no pad), `_` (space), `0` (zero), `+` (zero + '+' for >4 digit years), `^` (upper), `#` (swap case), optional width, optional `E`/`O` modifier.
 
-Full documentation is in `date_english.hlp` (English) and `date_german.hlp` (German, ESC-filtered). Both files are filtered to contain no ANSI ESC sequences (`\x1b`).
+Full documentation is in this README, the manual (`info datetime` from `manual.texi`), and the man page (`man/man1/datetime.1`).
 
 ## Usage
 
@@ -110,7 +112,7 @@ Full documentation is in `date_english.hlp` (English) and `date_german.hlp` (Ger
 ./datetime --version               # show version (with build number) and host timezone
 ./datetime -V                      # same as --version
 ./datetime -h                      # show help
-./datetime --help                  # show help (also saved in date_english.hlp)
+./datetime --help                  # show help
 
 # GNU date compatible
 ./datetime -u +"%Y-%m-%d %H:%M:%S %Z"               # UTC custom format
@@ -189,12 +191,12 @@ All suites together validate combinatorially:
 * mutual exclusivity errors (all 6 pairs + triples among `--date`/`--file`/`--reference`/`--resolution`), missing/invalid args, unknown options (`-Z`/`--unknown`)
 * compatible pairs/triples (`-u`×each, `--debug`×each, `+FORMAT`×each date source, legacy vs GNU last-wins, `-f` `-u` `--debug` matrix, `TZ=` prefix, `MMDDhhmm` positional)
 * TZ prefix, fractional epoch (`@1234567890.123456789`), stdin `-`, long inputs (5000+ chars), shell-injection attempt (`'; touch /tmp/pwned; echo '`)
-* buffer overflow with many specifiers (200×`%Y`), ESC-free help (`! grep -q $'\x1b'`), symlink `timestamp` alias
+* buffer overflow with many specifiers (200×`%Y`), ESC-free help (`! grep -q $'\x1b'`), renamed-binary run (no `argv0` dispatch)
 
 ## Memory and security checks
 
 ```sh
-make check              # syntax + valgrind for datetime and timestamp binaries
+make check              # syntax + valgrind for the datetime binary
 # extended valgrind matrix
 for cmd in "./datetime -d '@0'" "./datetime -f dates.txt +\"%F\"" "./datetime -u -Iseconds" "./datetime -R" "./datetime --rfc-3339=ns" "./datetime -r Makefile" "./datetime --set='2020-01-02'"; do
   valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 $cmd
@@ -234,21 +236,20 @@ sudo apt install gcc make valgrind bash coreutils python3 python3-pytest
 Build the binaries (does **not** install – run `make install` separately):
 
 ```sh
-make          # builds datetime + timestamp into the repo root
+make          # builds datetime into the repo root
 make install  # installs to $(prefix)/bin and $(prefix)/share/man/man1
 ```
 
 `make` builds only; `make install` deploys. Per the GNU Coding Standards, `prefix` defaults to `/usr/local` – binaries land in `/usr/local/bin` and the man page in `/usr/local/share/man/man1`. To install into your home directory instead, override `PREFIX`:
 
 ```sh
-PREFIX="$HOME" make install   # ~/bin/datetime + ~/bin/timestamp + ~/.local/share/man/man1/datetime.1
+PREFIX="$HOME" make install   # ~/bin/datetime + ~/.local/share/man/man1/datetime.1
 PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HOME/sbin/share/man
 ```
 
 `DESTDIR` is honored for staged/packaged installs (`make install DESTDIR=/tmp/pkg`), and `make uninstall` removes exactly what `install` laid down. The old behavior (`make` auto-installing to `~/sbin`) was removed in Task 16 per GNU Coding Standards §7.2.2 – `all` and `install` are separate targets.
 
-The version is `2.0.<build>`, where `<build>` is a `YYYYMMDDhhmmssZ`
-timestamp passed to the compiler with `-DVERSION_BUILD` (fallback chain `./datetime --timestamp` → `~/sbin/datetime --timestamp` → `date -u`), so it is always fresh even on a clean system. See it with `./datetime --version`.
+The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.202609131714`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
 
 Run the checks (syntax + memory leaks + test suites):
 
@@ -318,17 +319,17 @@ make PREFIX="$HOME/sbin" install         # keep classic ~/sbin even on macOS
 
 ## Install (explicit)
 
-Installs `datetime` and `timestamp` plus the man page to the GNU-standard directories under `prefix` (default `/usr/local`):
+Installs `datetime` plus the man page to the GNU-standard directories under `prefix` (default `/usr/local`). There is no separate `timestamp` binary – the UTC `YYYYMMDDhhmmssZ` format is selected at run time with `datetime --timestamp`:
 
 ```sh
-make install                # $(prefix)/bin/{datetime,timestamp} + $(prefix)/share/man/man1/datetime.1
+make install                # $(prefix)/bin/datetime + $(prefix)/share/man/man1/datetime.1
 make install DESTDIR=/tmp/pkg  # staged install for packaging
 ```
 
 User-local example:
 
 ```sh
-PREFIX="$HOME" make install   # ~/bin/datetime, ~/bin/timestamp, ~/.local/share/man/man1/datetime.1
+PREFIX="$HOME" make install   # ~/bin/datetime, ~/.local/share/man/man1/datetime.1
 ```
 
 Remove it with (removes exactly what `install` created, including any legacy `~/sbin` copies):
@@ -350,7 +351,7 @@ Extensive examples covering every option and `FORMAT` – all are tested in `tes
 ### Basic and version/help (C99 `datetime --help` is ESC-free, 134 lines)
 ```sh
 ./datetime                          # default: 20260909103730 (YYYYMMDDhhmmss)
-./datetime --help                   # full help, see date_english.hlp:1
+./datetime --help                   # full help
 ./datetime -h                       # same as --help
 ./datetime --version                # datetime 2.0.20260909083730Z + Timezone: CEST (UTC+2)
 ./datetime -V                       # same as --version
@@ -428,7 +429,7 @@ touch -d "2020-01-02 03:04:05" ref
 ./datetime --universal +"%Z"   # alias of -u
 ```
 
-### Custom FORMAT (all GNU sequences, flags, width, modifiers – `date_english.hlp:57`)
+### Custom FORMAT (all GNU sequences, flags, width, modifiers)
 ```sh
 ./datetime -d "2020-01-02" +"%a %A %b %B %c"   # Thu Thursday Jan January ...
 ./datetime -d "2020-01-02" +"%C %d %D %e %F"   # 20 02 01/02/20  2 2020-01-02
@@ -488,7 +489,7 @@ sudo ./datetime --set="2020-01-02" --debug    # with debug
 | After `make` install | `$(prefix)/bin/datetime --timestamp` (e.g. `~/bin/datetime` with `PREFIX="$HOME"`) | `20260909083730Z` |
 | Inside `datetime` format | `./datetime -u +"%Y%m%d%H%M%SZ"` | `20260909083730Z` |
 | Python utility | `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"` | `20260909083730Z` |
-| Build stamp | `make` → `-DVERSION_BUILD="20260909083730Z"` | used by `datetime --version` |
+| Build stamp | `__version__` in `datetime.c` | printed by `datetime --version` |
 
 ```sh
 # 1. Direct binary (UTC, sortable)
@@ -515,22 +516,18 @@ echo $TS | sed -E 's/([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2}
 
 We **chose this form on purpose** so both humans and LLMs can read it without guessing:
 
-* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, `-DVERSION_BUILD`, SKILL metadata, `project.toml` `scheme = "2.0.<build>"`. Compare `20260909083730Z` < `20260910120000Z` – no parsing needed.
+* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, SKILL metadata, `project.toml` `scheme = "x.y.micro"`. Compare `20260909083730Z` < `20260910120000Z` – no parsing needed.
 * **Unambiguous timezone:** Trailing `Z` = *Zulu* = UTC (`format = "%Y%m%d%H%M%SZ"` + `gmtime`). No local `CEST`/`PST` confusion. LLM can instantly split: `YYYY` `MM` `DD` `hh` `mm` `ss` `Z`.
 * **Compact but still human-readable:** 14 digits → split `YYYYMMDD` + `hhmmss`. Human scans `20260909` as `2026-09-09`, LLM tokenizes `2026 09 09 08 37 30 Z` without extra punctuation.
-* **Micro-version semantics:** `x.y.<UTC>` → `2.0.20260909083730Z`:
-  * `x.y` = API break / feature (`project.toml:4` `version = "2.0"` + `datetime.c:35-36` `VERSION_MAJOR/MINOR`)
-  * `<UTC>` = **release date-time** of this exact build. Every `make` evaluates `$(BUILD)` once via `Makefile` `$(shell)` with fallback chain `./datetime --timestamp || ~/sbin/datetime --timestamp || date -u +"%Y%m%d%H%M%SZ"` and passes it as `-DVERSION_BUILD` – so even on a clean machine the build still gets a fresh UTC stamp. No need to bump `x.y` for every commit; `x.y` stays stable, `Z` moves.
+* **Micro-version semantics:** `x.y.micro` → `2.0.202609131714`:
+  * `x.y` = API break / feature, `micro` = release date-time of this exact version. Both live in the single `__version__` constant in `datetime.c` – bump it when releasing; no build-time stamping.
 * **Used everywhere in this repo:**
-  * `Makefile` `-DVERSION_BUILD` → `datetime --version` → `2.0.20260909083730Z`
-  * `project.toml:70` `scheme = "2.0.<build>"` – docs for humans/LLMs how to interpret `2.0.*`
+  * `datetime.c` `__version__` → `datetime --version` → `2.0.202609131714`
+  * `project.toml` `scheme = "x.y.micro"` – docs for humans/LLMs how to interpret `2.0.*`
   * SKILL `writing-skills` / `tests-subfolder` prompts use `~/sbin/datetime --timestamp` to generate SKILL `__VERSION__` like `1.0.20260909104000Z`
 
 **For LLM:** Treat `Z` as `UTC`, split `^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$` → `YYYY-MM-DDThh:mm:ssZ` ISO. For human: read `20260909083730Z` as `2026-09-09 08:37:30 UTC` – the exact second this binary was built.
 
 ## Help files
 
-* `date_german.hlp` – German help, ESC sequences filtered (`72` ESC bytes removed, now `0`)
-* `date_english.hlp` – English help, regenerated from `datetime --help` (ESC-filtered, `134` lines), identical in structure to GNU `date --help` plus legacy section
-
-Both files contain no ANSI ESC sequences and are UTF-8.
+The help text is embedded in the binary (`./datetime --help`); there are no separate help files.

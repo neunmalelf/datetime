@@ -9,7 +9,7 @@ description = "Print the current local datetime in the host machine's timezone. 
 [source]
 main = "datetime.c"
 build_output = "datetime"
-docs = ["date_english.hlp", "date_german.hlp", "README.md"]
+docs = ["README.md", "manual.texi", "man/man1/datetime.1"]
 tests_bash = ["tests/_test_datetime", "tests/_test_combinatorial"]
 tests_python = ["tests/test_granular.py", "tests/test_exhaustive.py"]
 archived_tasks = ["history/todo_completed_*.md"]  # todo.md fully implemented and archived 20260909083118Z; re-archived after Tasks 16-17 (2026-09-12)
@@ -58,15 +58,15 @@ python_suites = ["tests/test_granular.py", "tests/test_exhaustive.py"]  # 24 + 1
 requires = ["bash", "python3", "pytest (optional)", "valgrind", "coreutils"]
 run_all = "make check && ./tests/_test_datetime && ./tests/_test_combinatorial && python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v"
 
-# Help files (ESC-filtered, UTF-8)
+# Documentation
 [docs]
-german = "date_german.hlp"      # 127 lines, 0 ESC after filtering 72 ESC bytes
-english = "date_english.hlp"    # 134 lines, regenerated from `datetime --help`, 0 ESC
 readme = "README.md"            # exhaustive combinatorial docs
+manual = "manual.texi"          # Texinfo manual
+manpage = "man/man1/datetime.1" # roff man page
 
 # Versioning
 [version]
 major = 2
 minor = 0
-scheme = "2.0.<build>"          # <build> = YYYYMMDDHHMMSSZ from ./datetime --timestamp || ~/sbin/datetime --timestamp || date -u, passed via -DVERSION_BUILD
-build_macro = "VERSION_BUILD"   # Makefile: -DVERSION_BUILD="<build>"; no generated header
+scheme = "x.y.micro"            # x.y.micro, e.g. 2.0.202609131714; micro = release date-time
+source = "__version__"          # single hardcoded constant in datetime.c; bump on release

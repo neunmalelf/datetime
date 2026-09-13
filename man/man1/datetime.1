@@ -1,15 +1,12 @@
 .TH DATETIME 1 "September 2026" "datetime 2.0" "User Commands"
 .SH NAME
-datetime, timestamp \- print or set the system date and time
+datetime \- print or set the system date and time
 .SH SYNOPSIS
 .B datetime
 [\fIOPTION\fR]... [\fI+FORMAT\fR]
 .br
 .B datetime
 [\fIOPTION\fR]... [\fIMMDDhhmm\fR[[\fICC\fR]\fIYY\fR][\fI.ss\fR]]
-.br
-.B timestamp
-[\fIOPTION\fR]...
 .SH DESCRIPTION
 \fBdatetime\fR displays the current date and time in the given \fIFORMAT\fR,
 or sets the system clock when \fB-s\fR / \fB--set\fR or a \fIMMDDhhmm\fR argument is given.
@@ -305,8 +302,7 @@ $ datetime -f dates.txt +"%F"
 $ printf "2020-01-02\\n" | datetime -f - +"%F"
 $ datetime -u +"%Y-%m-%d %H:%M:%S %Z"
 $ datetime --debug -d "2020-01-02"
-$ timestamp                       # 20260909083730Z (UTC)
-$ datetime --timestamp
+$ datetime --timestamp            # 20260909083730Z (UTC)
 .fi
 .RE
 .PP
@@ -316,19 +312,10 @@ Timestamp and microversion:
 .nf
 $ ~/sbin/datetime --timestamp     # 20260909083730Z
 $ TS=$(~/sbin/datetime --timestamp); echo "2.0.$TS" # 2.0.20260909083730Z
-$ make                            # passes fresh BUILD via -DVERSION_BUILD
+$ datetime --version              # 2.0.202609131714
 .fi
 .RE
 .SH FILES
-.I date_english.hlp
-\- English help, ESC-filtered, 134 lines
-.br
-.I date_german.hlp
-\- German help, ESC-filtered, 127 lines
-.br
-.I VERSION_BUILD
-\- build stamp passed via \fB\-DVERSION_BUILD\fR (YYYYMMDDHHMMSSZ)
-.br
 .I ~/sbin/datetime
 \- installed binary (via \fBmake install\fR; run with \fB--timestamp\fR for UTC)
 .SH "SEE ALSO"
@@ -336,7 +323,7 @@ $ make                            # passes fresh BUILD via -DVERSION_BUILD
 .BR strftime (3),
 .BR tzselect (1)
 .br
-Full documentation in \fBREADME.md:1\fR and \fBdate_english.hlp:1\fR.
+Full documentation in \fBREADME.md\fR and \fBmanual.texi\fR.
 .SH AUTHOR
 Written for the \fBdatetime\fR project (C99, 2.0). Uses only \fIlibc\fR.
 .br
