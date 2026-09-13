@@ -4,6 +4,11 @@ GNU datetime NEWS -- history of user-visible changes.
 
 ** Changes in behavior
 
+  `make` builds a second command, `timestamp` - the same program compiled
+  with -DDATETIME_TIMESTAMP_BUILD, so its default output is the UTC
+  `YYYYMMDDhhmmssZ` stamp.  `make install` deploys it alongside `datetime`
+  plus the new bash completion script (`shell/datetime.bash`) for both
+  commands; `make uninstall` removes all of it.
   `datetime -d ''` (empty or whitespace-only date string) now matches GNU
   date: today at midnight, instead of an error.
   `datetime -Ins` / `--iso-8601=auto` prints a dot as the ISO 8601 decimal

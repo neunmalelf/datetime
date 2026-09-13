@@ -4,7 +4,7 @@ A small C99 program that prints the current datetime, computed in the host machi
 
 Legacy formats are kept for backward compatibility; new options follow the GNU `date` interface.
 
-> **Build vs. deploy:** `make` only builds `datetime` into the repo root – it does **not** install anything. Run `make install` (optionally with `PREFIX=...`) to deploy the binary and man page; `make uninstall` removes them.
+> **Build vs. deploy:** `make` only builds `datetime` + `timestamp` into the repo root – it does **not** install anything. Run `make install` (optionally with `PREFIX=...`) to deploy the binaries, man page and bash completions; `make uninstall` removes them.
 
 ## Index
 
@@ -38,18 +38,20 @@ Legacy formats are kept for backward compatibility; new options follow the GNU `
 
 ### Legacy (backward compatible)
 
-| Invocation                                 | Output                         |
-|--------------------------------------------|--------------------------------|
-| `datetime` (default)                       | `YYYYMMDDhhmmss`              |
-| `datetime -hr` / `--human-readable`        | `YYYY-MM-DD hh:mm:ss`         |
-| `datetime -c` / `--compact` / `iso-basic` | `YYYYMMDDThhmmss` (ISO 8601 basic) |
-| `datetime -cd` / `--calendar-date`         | `YYYY-MM-DD`                  |
-| `datetime -cdb` / `--calendar-date-base`   | `YYYYMMDD`                    |
-| `datetime -od` / `--ordinal-date`          | `YYYY-DDD` (day of year 001–365/366) |
-| `datetime -odb` / `--ordinal-date-base`    | `YYYYDDD`                     |
-| `datetime -wd` / `--week-date`             | `YYYY-Www-D` (week 01–53, day 1=Mon…7=Sun) |
-| `datetime -wdb` / `--week-date-basic`      | `YYYYWwwD`                    |
-| `datetime --timestamp`                      | `YYYYMMDDhhmmssZ` (UTC)       |
+<!-- BEGIN GENERATED: format-table -->
+| Invocation                           | Output                                                         |
+|---------------------------------------|----------------------------------------------------------------|
+| `datetime` (default)                  | `YYYYMMDDhhmmss`                                               |
+| `datetime -hr, --human-readable`      | `YYYY-MM-DD hh:mm:ss`                                          |
+| `datetime -c, --compact`              | `YYYYMMDDThhmmss`                                              |
+| `datetime -cd, --calendar-date`       | `YYYY-MM-DD`                                                   |
+| `datetime -cdb, --calendar-date-base` | `YYYYMMDD`                                                     |
+| `datetime -od, --ordinal-date`        | `YYYY-DDD`                                                     |
+| `datetime -odb, --ordinal-date-base`  | `YYYYDDD`                                                      |
+| `datetime -wd, --week-date`           | `YYYY-Www-D`                                                   |
+| `datetime -wdb, --week-date-basic`    | `YYYYWwwD`                                                     |
+| `datetime --timestamp`                | `YYYYMMDDhhmmssZ` (UTC/GMT, compact seconds for micro version) |
+<!-- END GENERATED: format-table -->
 
 The timezone is used to compute the local time but is not part of the datetime output for legacy formats. It is reported by `--version` and `--help`.
 
@@ -236,14 +238,16 @@ sudo apt install gcc make valgrind bash coreutils python3 python3-pytest
 Build the binaries (does **not** install – run `make install` separately):
 
 ```sh
-make          # builds datetime into the repo root
-make install  # installs to $(prefix)/bin and $(prefix)/share/man/man1
+make          # builds datetime + timestamp into the repo root
+make install  # installs to $(prefix)/bin, $(prefix)/share/man/man1 + bash completions
 ```
+
+Tip: `./_make` shows an interactive menu over all Makefile targets (`./_make --list` to print it, `./_make <target>` to run without the menu, custom `make` args pass through, e.g. `./_make install PREFIX="$HOME"`).
 
 `make` builds only; `make install` deploys. Per the GNU Coding Standards, `prefix` defaults to `/usr/local` – binaries land in `/usr/local/bin` and the man page in `/usr/local/share/man/man1`. To install into your home directory instead, override `PREFIX`:
 
 ```sh
-PREFIX="$HOME" make install   # ~/bin/datetime + ~/.local/share/man/man1/datetime.1
+PREFIX="$HOME" make install   # ~/bin/{datetime,timestamp} + ~/.local/share/man/man1/datetime.1
 PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HOME/sbin/share/man
 ```
 
@@ -251,7 +255,7 @@ PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HO
 
 The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.202609131714`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
 
-Run the checks (syntax + memory leaks + test suites):
+Run the checks (syntax + memory leaks + security + style + test suites + doc drift):
 
 ```sh
 make check
@@ -259,6 +263,8 @@ make check
 ./tests/_test_combinatorial
 python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v
 ```
+
+The security part (`make check-security`) scans for banned libc APIs (`gets`, `strcpy`, `sprintf`, ...), runs `gcc -fanalyzer`, and an ASan/LeakSanitizer battery over ~30 success/error/stdin paths; UBSan runs when available (skip-with-notice by default, `STRICT=1` to fail instead). Or just run `./_make` and pick the check from the menu.
 
 ### macOS (Darwin) – Intel, Apple Silicon & external drives
 
@@ -275,7 +281,7 @@ brew install llvm                               # for clang-format --style=GNU
 
 **Build – same command, `C99` + `BSD` portable `install`:**
 ```sh
-make                                            # builds datetime (UTC micro-version via --timestamp)
+make                                            # builds datetime + timestamp (timestamp defaults to the UTC micro-version format)
 # Makefile:1 SHELL=/bin/sh, Makefile:22 INSTALL = install, INSTALL_PROGRAM = $(INSTALL) -m 0755
 # BSD install has no -D – Makefile:74 uses portable mkdir -p $(DESTDIR)$(bindir) before install
 ./datetime --version                             # datetime 2.0.2026090909XXXXZ (UTC)
@@ -319,10 +325,10 @@ make PREFIX="$HOME/sbin" install         # keep classic ~/sbin even on macOS
 
 ## Install (explicit)
 
-Installs `datetime` plus the man page to the GNU-standard directories under `prefix` (default `/usr/local`). There is no separate `timestamp` binary – the UTC `YYYYMMDDhhmmssZ` format is selected at run time with `datetime --timestamp`:
+Installs `datetime`, `timestamp` and the man page to the GNU-standard directories under `prefix` (default `/usr/local`), plus the bash completion script into bash-completion's `completionsdir` (auto-detected via `pkg-config`, fallback `$(prefix)/share/bash-completion/completions`). The two binaries are the same program: `timestamp` is compiled with `-DDATETIME_TIMESTAMP_BUILD` so its **default** output is the UTC `YYYYMMDDhhmmssZ` stamp – every option (`-d`, `-I`, `+FORMAT`, ...) works identically in both. Run-time behavior never depends on `argv[0]`: `datetime --timestamp` selects the same format:
 
 ```sh
-make install                # $(prefix)/bin/datetime + $(prefix)/share/man/man1/datetime.1
+make install                # $(prefix)/bin/{datetime,timestamp} + man page + bash completions
 make install DESTDIR=/tmp/pkg  # staged install for packaging
 ```
 
@@ -478,15 +484,16 @@ sudo ./datetime --set="2020-01-02" --debug    # with debug
 
 ### What it is
 
-* **Single binary, run-time flag:** The project builds one binary, `datetime` (local time `YYYYMMDDhhmmss`). The UTC `YYYYMMDDhhmmssZ` micro-version format is selected at run time with `--timestamp` — per GNU Coding Standards §17, behavior must not depend on the name used to invoke the program.
+* **Two builds of one program:** `datetime` (local time `YYYYMMDDhhmmss`) and `timestamp`, the same source compiled with `-DDATETIME_TIMESTAMP_BUILD` so its default output is the UTC `YYYYMMDDhhmmssZ` stamp. Run-time behavior never depends on the program name (GNU Coding Standards §17) – the `--timestamp` flag selects the same format in *every* build.
+* **Shell integration:** `make install` drops the bash completion script (`shell/datetime.bash`) into bash-completion's `completions` directory for both commands; without bash-completion, source it from your `~/.bashrc` (see the header of `shell/datetime.bash`).
 * **Standard Python equivalent:** `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"`.
 
 ### How to use it
 
 | Goal | Command | Output |
 |------|---------|--------|
-| **UTC micro-timestamp** | `./datetime --timestamp` | `20260909083730Z` |
-| After `make` install | `$(prefix)/bin/datetime --timestamp` (e.g. `~/bin/datetime` with `PREFIX="$HOME"`) | `20260909083730Z` |
+| **UTC micro-timestamp** | `./datetime --timestamp` or `./timestamp` | `20260909083730Z` |
+| After `make` install | `timestamp` (or `$(prefix)/bin/datetime --timestamp`, e.g. `~/bin/datetime` with `PREFIX="$HOME"`) | `20260909083730Z` |
 | Inside `datetime` format | `./datetime -u +"%Y%m%d%H%M%SZ"` | `20260909083730Z` |
 | Python utility | `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"` | `20260909083730Z` |
 | Build stamp | `__version__` in `datetime.c` | printed by `datetime --version` |
@@ -494,6 +501,7 @@ sudo ./datetime --set="2020-01-02" --debug    # with debug
 ```sh
 # 1. Direct binary (UTC, sortable)
 ./datetime --timestamp      # 20260909083730Z (UTC)
+./timestamp                 # same, via the second build (make builds both)
 PREFIX="$HOME"; $PREFIX/bin/datetime --timestamp     # same after PREFIX="$HOME" make install
 
 # 2. As micro-version in your own script/SKILL

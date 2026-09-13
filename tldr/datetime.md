@@ -12,11 +12,7 @@
 
 `datetime -hr`
 
-- Print UTC time with custom format:
-
-`datetime -u +"%Y-%m-%d %H:%M:%S %Z"`
-
-- Show help (134 lines, ESC-free):
+- Show help:
 
 `datetime --help`
 
@@ -24,15 +20,25 @@
 
 `datetime --version`
 
+- Set system time by positional operand (MMDDhhmm, requires root):
+
+`sudo datetime 09091100`
+
 - Parse a date string (epoch, ISO, relative):
 
 `datetime -d "@2147483647" -u`
 `datetime -d "2020-01-02 03:04:05" +"%F %T"`
 `datetime -d "next Fri" +"%F %A"`
-
-- Use TZ prefix for foreign timezone:
-
 `datetime -d 'TZ="America/Los_Angeles" 09:00 next Fri'`
+
+- Debug parsing (annotate to stderr):
+
+`datetime --debug -d "2020-01-02"`
+
+- Show time via file list:
+
+`datetime -f dates.txt +"%F"`
+`printf "2020-01-02\n" | datetime -f - +"%F"`
 
 - ISO-8601 output:
 
@@ -40,38 +46,44 @@
 `datetime -Iseconds`
 `datetime --iso-8601=ns`
 
-- RFC 5322 (email) and RFC 3339:
+- Show time of file modification:
 
-`datetime -R`
-`datetime --rfc-3339=seconds`
-
-- Show time via file list or file modification time:
-
-`datetime -f dates.txt +"%F"`
-`printf "2020-01-02\n" | datetime -f - +"%F"`
 `datetime -r Makefile +"%F %T"`
 
 - Show available timestamp resolution:
 
 `datetime --resolution`
 
+- RFC 3339:
+
+`datetime --rfc-3339=seconds`
+
+- RFC 5322 (email):
+
+`datetime -R`
+
 - Set system time (requires root; otherwise warns):
 
 `sudo datetime -s "2020-01-02 00:00:00"`
-`sudo datetime 09091100`
 
-- Timestamp (UTC `YYYYMMDDhhmmssZ`):
+- Timestamp (UTC YYYYMMDDhhmmssZ):
 
 `timestamp`
 `datetime --timestamp`
 `TS=$(timestamp); echo "2.0.$TS"`
 
-- Debug parsing (annotate to stderr):
+- UTC / custom format:
 
-`datetime --debug -d "2020-01-02"`
+`datetime -u +"%Y-%m-%d %H:%M:%S %Z"`
 
 - Legacy formats:
 
-`datetime -cd` # calendar `YYYY-MM-DD`
-`datetime -wd` # week `YYYY-Www-D`
-`datetime -od` # ordinal `YYYY-DDD`
+`datetime -hr, --human-readable`   # `YYYY-MM-DD hh:mm:ss`
+`datetime -c, --compact`   # `YYYYMMDDThhmmss`
+`datetime -cd, --calendar-date`   # `YYYY-MM-DD`
+`datetime -cdb, --calendar-date-base`   # `YYYYMMDD`
+`datetime -od, --ordinal-date`   # `YYYY-DDD`
+`datetime -odb, --ordinal-date-base`   # `YYYYDDD`
+`datetime -wd, --week-date`   # `YYYY-Www-D`
+`datetime -wdb, --week-date-basic`   # `YYYYWwwD`
+`datetime --timestamp`   # `YYYYMMDDhhmmssZ`

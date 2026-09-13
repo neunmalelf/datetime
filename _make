@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# _make -- interactive menu over this project's Makefile targets.
+#
+# Usage:
+#   ./_make              # interactive menu
+#   ./_make <target>...  # direct: runs `make <target>...` (custom args allowed)
+#   ./_make commit       # git add -A + commit (prompts for the message)
+#   ./_make commit MSG   # git add -A + commit with the given message
+#   ./_make push         # make check gate, then git push + GitHub release
+#                        #   v<version> carrying the datetime + timestamp
+#                        #   binaries and the source tarball (gh CLI needed);
+#                        #   bypass the gate with _MAKE_SKIP_CHECK=1
+#   ./_make --list       # print the menu table and exit
+#   ./_make -h|--help    # this help
+#
+# Targets are executed with plain `make` so flags pass through, e.g.
+#   ./_make install bindir="$HOME/sbin"
+
+set -u
+
+cd "$(dirname "$0")" || exit 1
+
+if [[ -t 1 || -n ${FORCE_COLOR:-} ]] && [[ -z "${NO_COLOR:-}" ]]; then
+    B=$'\033[1m'  ; R=$'\033[0m'   # bold, reset
+    C=$'\033[36m' ; G=$'\033[32m'  # cyan, green
+    Y=$'\033[33m' ; RED=$'\033[31m'
+    M=$'\033[35m'                  # magenta
+else
+    B='' ; R='' ; C='' ; G='' ; Y='' ; RED='' ; M=''
+fi
+
+# target : menu description
+# MENU_KEYS is the single source of truth for both the printed menu and
+# the interactive dispatch (plain array lookup -- no separate case
+# pattern to drift out of sync).  Adding target #20?  Add key #20 here;
+# menu_selfcheck() below fails loudly if the arrays ever disagree.
+MENU_KEYS=(1 2 3 4 5 6 7 8 9 a b c d e f g h i j)
+
+targets=(
+    "all"
+    "check"
+    "check-docs"
+    "check-security"
+    "check-test"
+    "check-mem"
+    "check-syntax"
+    "check-style"
+    "info"
+    "install"
+    "install-strip"
+    "uninstall"
+    "clean"
+    "dist"
+    "distclean"
+    "realclean"
+    "TAGS"
+    "commit"
+    "push"
+)
+descs=(
+    "build datetime + timestamp into the repo root"
+    "everything: syntax, memory, security, style, tests, doc drift"
+    "verify README table + tldr page match the binary"
+    "security battery: banned APIs, -fanalyzer, ASan/LSan, UBSan"
+    "run all test suites (via ./_tests)"
+    "valgrind leak check on datetime + error paths"
+    "compile syntax only (fast, no codegen)"
+    "GNU coding style check (indent -gnu / clang-format)"
+    "build the texinfo manual (datetime.info)"
+    "deploy binaries + man page + bash completions (auto-fallback to ~/sbin if /usr/local is not writable)"
+    "same as install, binaries stripped"
+    "remove everything install created"
+    "remove build artifacts (binaries, objects)"
+    "create release tarball datetime-<version>.tar.gz"
+    "clean + remove generated info/dvi/config files"
+    "distclean + remove tags and tarballs"
+    "(re)generate emacs TAGS table"
+    "git add -A + commit (prompts for message; ./_make commit MSG uses MSG)"
+    "git push + GitHub release v<version> with binaries + tarball (gated on make check)"
+)
+
+menu_selfcheck() {
+    if [[ ${#targets[@]} -ne ${#MENU_KEYS[@]} ]]; then
+        printf 'FATAL: %d targets but %d menu keys - fix MENU_KEYS in %s\n' \
+            "${#targets[@]}" "${#MENU_KEYS[@]}" "$0" >&2
+        exit 2
+    fi
+    if [[ ${#targets[@]} -ne ${#descs[@]} ]]; then
+        printf 'FATAL: %d targets but %d descriptions - fix descs in %s\n' \
+            "${#targets[@]}" "${#descs[@]}" "$0" >&2
+        exit 2
+    fi
+}
+
+usage() {
+    grep '^#' "$0" | sed 's/^# \{0,1\}//'
+}
+
+list_menu() {
+    echo
+    printf '%sdatetime%s -- make menu  %s(pick a number, or run: ./_make <target>)%s\n' "$B" "$R" "$Y" "$R"
+    echo
+    local i textcolor
+    for i in "${!targets[@]}"; do
+        if (( (i + 1) % 2 == 1 )); then textcolor=$C; else textcolor=""; fi
+        # 5-space indent lines the entries up with the 'choice: ' prompt;
+        # keys in magenta, odd lines' text in cyan.
+        printf '     %s%s%s %-9s %s%s%s\n' \
+            "$M" "${MENU_KEYS[$i]}" "$R" "${targets[$i]}" "$textcolor" "${descs[$i]}" "$R"
+    done
+    echo
+    printf '     %sq%s %-9s leave the menu\n' "$M" "$R" ""
+    echo
+}
+
+run() {
+    echo "${C}==> make $*${R}"
+    make "$@"
+}
+
+# install/uninstall convenience: if the default prefix (/usr/local) is not
+# writable and the user gave no location override, fall back to the usual
+# user-PATH locations instead of failing with 'Keine Berechtigung'.
+INSTALL_OVERRIDES=()
+install_overrides() {
+    INSTALL_OVERRIDES=()
+    local a
+    for a in "$@"; do
+        case $a in
+            PREFIX=*|prefix=*|bindir=*|DESTDIR=*|mandir=*|completionsdir=*)
+                return 0 ;;   # explicit location: take it literally
+        esac
+    done
+    [[ -w /usr/local/bin ]] && return 0
+    printf '%s/usr/local/bin is not writable - using your PATH location instead:%s\n' "$Y" "$R"
+    printf '%s  bindir=%s/sbin   (system install: sudo make install, or ./_make install PREFIX=/usr/local)%s\n' "$Y" "$HOME" "$R"
+    INSTALL_OVERRIDES=(
+        "bindir=$HOME/sbin"
+        "mandir=$HOME/.local/share/man"
+        "completionsdir=$HOME/.local/share/bash-completion/completions"
+    )
+}
+
+dispatch() {
+    local t=$1; shift
+    case $t in
+        commit) commit_release "$*" ;;
+        push)   push_release ;;
+        install|install-strip|uninstall)
+            install_overrides "$@"
+            run "$t" ${INSTALL_OVERRIDES[@]+"${INSTALL_OVERRIDES[@]}"} "$@"
+            ;;
+        *)      run "$t" "$@" ;;
+    esac
+}
+
+# git add -A + commit.  Message: $1, or prompted interactively.
+commit_release() {
+    local msg=$1
+    if [[ -z $msg ]]; then
+        echo "${C}git status:${R}"
+        git status --short
+        printf 'commit message (empty cancels): '
+        IFS= read -r msg
+        [[ -n $msg ]] || { echo "cancelled." ; return 1 ; }
+    fi
+    git add -A
+    echo "${C}==> git commit${R}"
+    git commit -m "$msg"
+}
+
+# git push, then create a GitHub release v<version> carrying the built
+# binaries + source tarball (gh CLI + github remote required).
+push_release() {
+    local ver tag tarball
+    if [[ ${_MAKE_SKIP_CHECK:-0} != 1 ]]; then
+        echo "${C}==> make check (release gate; bypass with _MAKE_SKIP_CHECK=1)${R}"
+        make check || { echo "${RED}make check FAILED - release aborted${R}" ; return 1 ; }
+    else
+        echo "${Y}_MAKE_SKIP_CHECK=1 - skipping the make check release gate${R}
+"
+    fi
+    ver=$(make -s dist-version 2>/dev/null) || return 1
+    [[ -n $ver ]] || { echo "${RED}could not determine version from datetime.c${R}" ; return 1 ; }
+    tag="v$ver"
+    tarball="datetime-$ver.tar.gz"
+
+    echo "${C}==> make clean + make (release build)${R}"
+    make clean >/dev/null && make || return 1
+    echo "${C}==> make dist (source tarball)${R}"
+    make dist >/dev/null || return 1
+    [[ -f $tarball ]] || { echo "${RED}$tarball missing after make dist${R}" ; return 1 ; }
+
+    echo "${C}==> git push${R}"
+    git push || return 1
+
+    command -v gh >/dev/null || { echo "${RED}gh CLI not found - pushed, but no release created${R}" ; return 1 ; }
+    git remote get-url origin 2>/dev/null | grep -q github || {
+        echo "${RED}origin is not a github remote - pushed, but no release created${R}" ; return 1 ; }
+
+    if gh release view "$tag" >/dev/null 2>&1; then
+        echo "${Y}release $tag already exists - uploading assets only${R}"
+        gh release upload "$tag" "$tarball" datetime timestamp --clobber || return 1
+    else
+        echo "${C}==> gh release create $tag${R}"
+        gh release create "$tag" "$tarball" datetime timestamp \
+            --title "$tag" \
+            --generate-notes || return 1
+    fi
+    echo "${G}release $tag published with $tarball, datetime, timestamp${R}"
+}
+
+# ---- argument dispatch ----
+
+menu_selfcheck
+
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        -h|--help) usage ; exit 0 ;;
+        --list)    list_menu ; exit 0 ;;
+        commit)    shift ; commit_release "$*" ; exit $? ;;
+        push)      push_release ; exit $? ;;
+        *)         dispatch "$@" ; exit $? ;;
+    esac
+fi
+
+# ---- interactive menu ----
+
+while true; do
+    list_menu
+    printf 'choice: '
+    IFS= read -rn1 key || exit 0
+    echo
+    if [[ $key == q || $key == Q || -z $key ]]; then echo "bye." ; exit 0 ; fi
+    # Dispatch by array lookup: the same MENU_KEYS the menu printed.
+    # There is no separate case pattern left to drift out of sync.
+    idx=-1
+    for k in "${!MENU_KEYS[@]}"; do
+        if [[ $key == "${MENU_KEYS[$k]}" ]]; then idx=$k ; break ; fi
+    done
+    if (( idx < 0 )); then
+        printf '%sinvalid choice: %s%s\n' "$RED" "$key" "$R"
+        sleep 1
+        continue
+    fi
+    dispatch "${targets[$idx]}"
+    printf '\n%s[target %s finished -- press any key]%s\n' "$Y" "${targets[$idx]}" "$R"
+    IFS= read -rn1 || exit 0
+    echo
+done

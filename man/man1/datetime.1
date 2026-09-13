@@ -1,21 +1,28 @@
 .TH DATETIME 1 "September 2026" "datetime 2.0" "User Commands"
 .SH NAME
 datetime \- print or set the system date and time
+timestamp \- print the current UTC timestamp
 .SH SYNOPSIS
 .B datetime
 [\fIOPTION\fR]... [\fI+FORMAT\fR]
 .br
 .B datetime
 [\fIOPTION\fR]... [\fIMMDDhhmm\fR[[\fICC\fR]\fIYY\fR][\fI.ss\fR]]
+.br
+.B timestamp
+[\fIOPTION\fR]...
 .SH DESCRIPTION
 \fBdatetime\fR displays the current date and time in the given \fIFORMAT\fR,
 or sets the system clock when \fB-s\fR / \fB--set\fR or a \fIMMDDhhmm\fR argument is given.
 Without options it prints the local time as \fIYYYYMMDDhhmmss\fR.
 .PP
 With \fB--timestamp\fR, \fBdatetime\fR prints UTC as \fIYYYYMMDDhhmmssZ\fR
-(compact seconds, trailing \fBZ\fR).  There is no separate \fBtimestamp\fR
-binary: per GNU Coding Standards section 17, behavior must not depend on the
-name used to invoke the program.
+(compact seconds, trailing \fBZ\fR).  The \fBtimestamp\fR command is the same
+program compiled with \fB-DDATETIME_TIMESTAMP_BUILD\fR: its default output is
+that UTC stamp, and every option behaves exactly as in \fBdatetime\fR.
+Run\-time behavior never depends on the name used to invoke the program (GNU
+Coding Standards section 17): \fBdatetime --timestamp\fR selects the same
+format in every build.
 .PP
 The program is written in strict \fBC99\fR (\-std=c99, only \fIlibc\fR, no external
 libraries) and exposes GNU \fBdate\fR compatible options.
@@ -318,6 +325,11 @@ $ datetime --version              # 2.0.202609131714
 .SH FILES
 .I ~/sbin/datetime
 \- installed binary (via \fBmake install\fR; run with \fB--timestamp\fR for UTC)
+.I ~/sbin/timestamp
+\- same program, default output is the UTC \fIYYYYMMDDhhmmssZ\fR stamp
+.I $(prefix)/share/bash-completion/completions/{datetime,timestamp}
+\- bash completion for both commands (installed by \fBmake install\fR;
+without bash\-completion, source \fIshell/datetime.bash\fR from \fI~/.bashrc\fR)
 .SH "SEE ALSO"
 .BR date (1),
 .BR strftime (3),

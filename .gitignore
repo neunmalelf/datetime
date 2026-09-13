@@ -1,7 +1,13 @@
 # Build artifacts
 datetime
 datetime.exe
+timestamp
+timestamp.exe
 *.o
+*.tar.gz
 .pytest_cache/
 __pycache__/
 .opencode/
+
+# Editor backups
+*~

@@ -79,9 +79,13 @@ match_format (const char *a)
   return NULL;
 }
 
-/* is_timestamp_binary removed for GNU strict compliance: the UTC micro version    format is selected at run time with
-the --timestamp flag (GNU Coding    Standards section 17: behavior must not depend on the name used to invoke    the
-program).  */
+/* Note: even though the standalone 'timestamp' command is built from this
+   same source as a variant binary, its behavior does not depend on argv[0]:
+   'timestamp' is compiled with DATETIME_TIMESTAMP_BUILD, which only changes
+   the *default* output format (UTC YYYYMMDDhhmmssZ).  The --timestamp flag
+   selects the same format at run time in every build (GNU Coding Standards
+   section 17: behavior must not depend on the name used to invoke the
+   program).  */
 
 static void
 print_timezone (void)
@@ -220,14 +224,19 @@ print_usage (const char *prog)
 
   printf ("\n"
 	  "Report bugs to: bug-coreutils@gnu.org (GNU compatibility)\n"
-	  "datetime %s - local implementation\n",
-	  __version__);
+	  "datetime %s - local implementation\n", __version__);
 }
 
 static void
 print_version (void)
 {
-  printf ("datetime %s\n", __version__);
+  printf ("%s %s\n",
+#ifdef DATETIME_TIMESTAMP_BUILD
+	  "timestamp"
+#else
+	  "datetime"
+#endif
+	  , __version__);
   print_timezone ();
 }
 
@@ -1304,6 +1313,12 @@ int
 main (int argc, char **argv)
 {
   struct output_selection os = { 0 };
+#ifdef DATETIME_TIMESTAMP_BUILD
+  /* The 'timestamp' build is a plain variant of the same program: its
+     default output is the UTC YYYYMMDDhhmmssZ stamp instead of the local
+     YYYYMMDDhhmmss.  Every option behaves exactly as in 'datetime'.  */
+  select_timestamp_format (&os);
+#endif
   int help_flag = 0;
   int version_flag = 0;
   int exit_code = 0;
