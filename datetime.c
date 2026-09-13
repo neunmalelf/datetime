@@ -23,9 +23,7 @@
 #include <sys/time.h>
 #endif
 
-#include "version.h"
-
-// __version__ = 2.0.<build>  (build = YYYYMMDDhhmmss, generated at compile time)
+// __version__ = 2.0.202090914160900
 
 #ifndef VERSION_BUILD
 #define VERSION_BUILD "00000000000000"
@@ -86,7 +84,9 @@ match_format (const char *a)
   return NULL;
 }
 
-/* is_timestamp_binary removed for GNU strict compliance: use --timestamp flag or -DTIMESTAMP compile-time (see Makefile:27) */
+/* is_timestamp_binary removed for GNU strict compliance: the UTC micro version    format is selected at run time with
+the --timestamp flag (GNU Coding    Standards section 17: behavior must not depend on the name used to invoke    the
+program).  */
 
 static void
 print_timezone (void)
@@ -418,7 +418,8 @@ parse_epoch (const char *s, struct timespec *out)
 static int
 parse_with_strptime (const char *s, struct timespec *out, int utc)
 {
-  // List of formats to try; order matters (more specific first)
+  // List of formats to try; order matters (more specific first).
+  // Bare "%H:%M(:%S)" entries are anchored on today's date below.
   const char *fmts[] = {
     "%Y-%m-%dT%H:%M:%S%z",
     "%Y-%m-%dT%H:%M:%S",
@@ -426,16 +427,17 @@ parse_with_strptime (const char *s, struct timespec *out, int utc)
     "%Y-%m-%d %H:%M:%S",
     "%Y-%m-%d %H:%M",
     "%Y-%m-%d",
-    "%Y/%m/%d %H:%M:%S",
-    "%Y/%m/%d",
     "%m/%d/%y %H:%M:%S",
     "%m/%d/%y",
     "%m/%d/%Y",
+    "%Y/%m/%d %H:%M:%S",
+    "%Y/%m/%d",
     "%Y%m%d%H%M%S",
     "%Y%m%d",
     "%a %b %d %H:%M:%S %Z %Y",
+    /* "%a, %d %b %Y %H:%M:%S %Z" is subsumed by the %z variant above
+       (glibc strptime %z also matches RFC 5322 alphabetic zones).  */
     "%a, %d %b %Y %H:%M:%S %z",
-    "%a, %d %b %Y %H:%M:%S %Z",
     "%d %b %Y %H:%M:%S",
     "%H:%M:%S",
     "%H:%M",
@@ -444,6 +446,7 @@ parse_with_strptime (const char *s, struct timespec *out, int utc)
   for (int i = 0; fmts[i]; i++)
     {
       struct tm tm = { 0 };
+      const int has_zone = strstr (fmts[i], "%z") != NULL;
       char *ret = strptime (s, fmts[i], &tm);
       if (ret)
 	{
@@ -452,12 +455,54 @@ parse_with_strptime (const char *s, struct timespec *out, int utc)
 	    ret++;
 	  if (*ret != '\0')
 	    continue;
+	  /* Positional sanity: a bare "%H:%M(:%S)" match leaves the date
+	     fields zeroed, and mktime normalizes tm_mday == 0 / tm_year == 0
+	     to 1899-12-31.  Anchor such matches on today's date, like GNU
+	     date does for time-only strings.  */
+	  if (tm.tm_year == 0 && tm.tm_mday == 0)
+	    {
+	      time_t now = time (NULL);
+	      struct tm base;
+	      if (utc)
+		gmtime_r (&now, &base);
+	      else
+		localtime_r (&now, &base);
+	      tm.tm_year = base.tm_year;
+	      tm.tm_mon = base.tm_mon;
+	      tm.tm_mday = base.tm_mday;
+	    }
 	  // handle mktime vs timegm
 	  tm.tm_isdst = -1;
-	  time_t t;
-	  if (utc)
+	  /* An explicit numeric zone (%z) in the input must shift the wall
+	     clock into UTC; mktime/timegm would otherwise reinterpret it in
+	     the local (or UTC) zone.  glibc/BSD strptime fills tm_gmtoff for
+	     %z; the field does not exist on Windows.  */
+	  long zoff = 0;
+	  int has_off = 0;
+#if !defined(_WIN32)
+	  if (has_zone)
 	    {
-#ifdef __linux__
+	      zoff = (long) tm.tm_gmtoff;
+	      has_off = 1;
+	    }
+#endif
+	  time_t t;
+	  if (has_off)
+	    {
+#if defined(_WIN32)
+	      t = _mkgmtime (&tm);
+#else
+	      t = timegm (&tm);
+#endif
+	      if (t != (time_t) - 1)
+		t -= (time_t) zoff;
+	    }
+	  else if (utc)
+	    {
+#if defined(_WIN32)
+	      /* MSVCRT/UCRT has no timegm; _mkgmtime is the direct equivalent. */
+	      t = _mkgmtime (&tm);
+#elif defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
 	      t = timegm (&tm);
 #else
 	      // fallback: set TZ=UTC temporarily
@@ -606,11 +651,51 @@ parse_day_offset (int day_delta, struct timespec *out, int utc)
   return 1;
 }
 
+/* Parse an MMDDhhmm[.ss] set-time operand (len == 8 digits plus optional
+   '.ss' has already been verified by is_mmdd_format) into a timespec on
+   today's date, honoring UTC.  Returns 1 on success, 0 otherwise.  */
+static int
+parse_mmddhhmm (const char *s, struct timespec *out, int utc)
+{
+  const char *dot = strchr (s, '.');
+  const char *num_end = dot ? dot : s + strlen (s);
+  if ((size_t) (num_end - s) != 8)
+    return 0;
+
+  char mm[3] = { 0 }, dd[3] = { 0 }, hh[3] = { 0 }, mi[3] = { 0 };
+  memcpy (mm, s, 2);
+  memcpy (dd, s + 2, 2);
+  memcpy (hh, s + 4, 2);
+  memcpy (mi, s + 6, 2);
+
+  time_t now = time (NULL);
+  struct tm tm;
+  if (utc)
+    gmtime_r (&now, &tm);
+  else
+    localtime_r (&now, &tm);
+  int year = tm.tm_year + 1900;
+  memset (&tm, 0, sizeof (tm));
+  tm.tm_mon = atoi (mm) - 1;
+  tm.tm_mday = atoi (dd);
+  tm.tm_hour = atoi (hh);
+  tm.tm_min = atoi (mi);
+  tm.tm_sec = dot ? atoi (dot + 1) : 0;
+  tm.tm_year = year - 1900;
+  tm.tm_isdst = -1;
+  time_t t = utc ? timegm (&tm) : mktime (&tm);
+  if (t == (time_t) - 1)
+    return 0;
+  out->tv_sec = t;
+  out->tv_nsec = 0;
+  return 1;
+}
+
 /* Main parse function */
 static int
 parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
 {
-  if (!orig || !*orig)
+  if (!orig)
     return 0;
   // Make mutable copy for trim (dynamic, no arbitrary limit)
   char *buf = strdup (orig);
@@ -619,8 +704,12 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
   trim (buf);
   if (!buf[0])
     {
+      // GNU date treats an empty (or whitespace-only) date string as
+      // "today" at midnight (its "today" keeps the current time, ours
+      // means midnight; empty maps to midnight for exact parity).
       free (buf);
-      return 0;
+      parse_day_offset (0, out, utc);
+      return 1;
     }
 
   debug_log ("parsing date string '%s' (utc=%d)", buf, utc);
@@ -728,6 +817,32 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
 /* Format time with handling of %N and %q, and custom % handling.
    Returns 0 on success, out is filled.
 */
+/* A conversion-specifier extension for format_time: a literal token in the
+   format string and its replacement text (a precomputed buffer).  */
+struct special_conv
+{
+  const char *token;
+  const char *text;
+};
+
+/* Append LEN bytes from SRC to OUT at *OUT_LEN, keeping it NUL-terminated.
+   Returns 0 on success, -1 if OUT (size OUTSZ) has no room.  */
+static int
+append_str (char *out, size_t *out_len, size_t outsz, const char *src,
+	    size_t len)
+{
+  if (len == 0)
+    return 0;
+  if (*out_len + len >= outsz)
+    {
+      out[outsz - 1] = '\0';
+      return -1;
+    }
+  memcpy (out + *out_len, src, len);
+  *out_len += len;
+  return 0;
+}
+
 static int
 format_time (const struct timespec *ts, const char *fmt, int utc, char *out,
 	     size_t outsz)
@@ -761,6 +876,9 @@ format_time (const struct timespec *ts, const char *fmt, int utc, char *out,
   long mm = (absoff % 3600) / 60;
   long ss = absoff % 60;
 
+  /* Numeric zone strings for the %z family, precomputed once.
+     %:z = +hh:mm, %::z = +hh:mm:ss, %:::z = shortest unambiguous form
+     (seconds only when nonzero, minutes only when nonzero).  */
   char zbuf[32], zcol1[32], zcol2[32], zcol3buf[32];
   snprintf (zbuf, sizeof (zbuf), "%c%02ld%02ld", sign, hh, mm);
   snprintf (zcol1, sizeof (zcol1), "%c%02ld:%02ld", sign, hh, mm);
@@ -773,169 +891,81 @@ format_time (const struct timespec *ts, const char *fmt, int utc, char *out,
   else
     snprintf (zcol3buf, sizeof (zcol3buf), "%c%02ld", sign, hh);
 
+  /* Precomputed replacements for the conversion-specifier extensions
+     handled in the scan loop below (%N, %q, %s: strftime lacks them on
+     some platforms, and the %z family is precomputed anyway).  */
+  char nbuf[16];
+  snprintf (nbuf, sizeof (nbuf), "%09ld", (long) ts->tv_nsec);
+  char sbuf[32];
+  snprintf (sbuf, sizeof (sbuf), "%ld", (long) ts->tv_sec);
+  char qbuf[2];
+  qbuf[0] = (char) ('0' + quarter);
+  qbuf[1] = '\0';
+
+  /* Longest token first, so that %:::z wins over %::z and %:z.  */
+  const struct special_conv specials[] = {
+    {"%:::z", zcol3buf},
+    {"%::z", zcol2},
+    {"%:z", zcol1},
+    {"%z", zbuf},
+    {"%N", nbuf},
+    {"%q", qbuf},
+    {"%s", sbuf},
+    {NULL, NULL}
+  };
+
   size_t out_len = 0;
   for (size_t i = 0; fmt[i];)
     {
       if (fmt[i] != '%')
 	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  out[out_len++] = fmt[i++];
+	  if (append_str (out, &out_len, outsz, &fmt[i], 1) != 0)
+	    return -1;
+	  i++;
 	  continue;
 	}
 
       /* fmt[i] == '%' */
       if (fmt[i + 1] == '\0')
 	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  out[out_len++] = '%';
+	  /* Trailing '%': emit it literally and stop (GNU date behavior).  */
+	  if (append_str (out, &out_len, outsz, "%", 1) != 0)
+	    return -1;
 	  i++;
 	  break;
 	}
-      if (fmt[i + 1] == '%')
-	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
+
+      /* Conversion-specifier extensions first: %N, %q, %s and the %z
+         family, longest token first.  %n and %t are ISO C and stay with
+         strftime.  */
+      {
+	const char *rep = NULL;
+	size_t matchlen = 0;
+	for (int k = 0; specials[k].token != NULL; k++)
+	  {
+	    matchlen = strlen (specials[k].token);
+	    if (strncmp (&fmt[i], specials[k].token, matchlen) == 0)
+	      {
+		rep = specials[k].text;
+		break;
+	      }
+	  }
+	if (rep)
+	  {
+	    if (append_str (out, &out_len, outsz, rep, strlen (rep)) != 0)
 	      return -1;
-	    }
-	  out[out_len++] = '%';
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == 'N')
-	{
-	  char nbuf[16];
-	  int nlen =
-	    snprintf (nbuf, sizeof (nbuf), "%09ld", (long) ts->tv_nsec);
-	  if (nlen < 0 || out_len + (size_t) nlen >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  memcpy (out + out_len, nbuf, (size_t) nlen);
-	  out_len += (size_t) nlen;
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == 'q')
-	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  out[out_len++] = (char) ('0' + quarter);
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == 's')
-	{
-	  char sbuf[32];
-	  int slen = snprintf (sbuf, sizeof (sbuf), "%ld", (long) ts->tv_sec);
-	  if (slen < 0 || out_len + (size_t) slen >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  memcpy (out + out_len, sbuf, (size_t) slen);
-	  out_len += (size_t) slen;
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == ':')
-	{
-	  if (strncmp (&fmt[i], "%:::z", 5) == 0)
-	    {
-	      size_t l = strlen (zcol3buf);
-	      if (out_len + l >= outsz)
-		{
-		  out[outsz - 1] = '\0';
-		  return -1;
-		}
-	      memcpy (out + out_len, zcol3buf, l);
-	      out_len += l;
-	      i += 5;
-	      continue;
-	    }
-	  if (strncmp (&fmt[i], "%::z", 4) == 0)
-	    {
-	      size_t l = strlen (zcol2);
-	      if (out_len + l >= outsz)
-		{
-		  out[outsz - 1] = '\0';
-		  return -1;
-		}
-	      memcpy (out + out_len, zcol2, l);
-	      out_len += l;
-	      i += 4;
-	      continue;
-	    }
-	  if (strncmp (&fmt[i], "%:z", 3) == 0)
-	    {
-	      size_t l = strlen (zcol1);
-	      if (out_len + l >= outsz)
-		{
-		  out[outsz - 1] = '\0';
-		  return -1;
-		}
-	      memcpy (out + out_len, zcol1, l);
-	      out_len += l;
-	      i += 3;
-	      continue;
-	    }
-	}
-      if (fmt[i + 1] == 'z')
-	{
-	  size_t l = strlen (zbuf);
-	  if (out_len + l >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  memcpy (out + out_len, zbuf, l);
-	  out_len += l;
-	  i += 2;
-	  continue;
-	}
+	    i += matchlen;
+	    continue;
+	  }
+      }
+
+      /* Under -u, %Z must read "UTC" rather than the local zone
+         abbreviation: the tm comes from gmtime_r, but some strftimes
+         consult the global timezone anyway.  */
       if (utc && fmt[i + 1] == 'Z')
 	{
-	  if (out_len + 3 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  memcpy (out + out_len, "UTC", 3);
-	  out_len += 3;
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == 'n')
-	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  out[out_len++] = '\n';
-	  i += 2;
-	  continue;
-	}
-      if (fmt[i + 1] == 't')
-	{
-	  if (out_len + 1 >= outsz)
-	    {
-	      out[outsz - 1] = '\0';
-	      return -1;
-	    }
-	  out[out_len++] = '\t';
+	  if (append_str (out, &out_len, outsz, "UTC", 3) != 0)
+	    return -1;
 	  i += 2;
 	  continue;
 	}
@@ -985,26 +1015,16 @@ format_time (const struct timespec *ts, const char *fmt, int utc, char *out,
 	  if (year >= 0 && width > 4)
 	    {
 	      snprintf (yb, sizeof (yb), "%0*ld", (int) (width - 1), year);
-	      if (out_len + 1 + strlen (yb) >= outsz)
-		{
-		  out[outsz - 1] = '\0';
-		  return -1;
-		}
-	      out[out_len++] = '+';
-	      memcpy (out + out_len, yb, strlen (yb));
-	      out_len += strlen (yb);
+	      if (append_str (out, &out_len, outsz, "+", 1) != 0)
+		return -1;
+	      if (append_str (out, &out_len, outsz, yb, strlen (yb)) != 0)
+		return -1;
 	    }
 	  else
 	    {
 	      snprintf (yb, sizeof (yb), "%0*ld", (int) width, year);
-	      size_t yl = strlen (yb);
-	      if (out_len + yl >= outsz)
-		{
-		  out[outsz - 1] = '\0';
-		  return -1;
-		}
-	      memcpy (out + out_len, yb, yl);
-	      out_len += yl;
+	      if (append_str (out, &out_len, outsz, yb, strlen (yb)) != 0)
+		return -1;
 	    }
 	  continue;
 	}
@@ -1046,45 +1066,145 @@ is_valid_rfc3339_fmt (const char *f)
 }
 
 static int
+is_all_digits (const char *s)
+{
+  if (!s || !*s)
+    return 0;
+  for (const char *q = s; *q; q++)
+    if (!isdigit ((unsigned char) *q))
+      return 0;
+  return 1;
+}
+
+/* Recognize an MMDDhhmm[.ss] set-time operand.  The 8 digits before the
+   optional .ss are range-checked so that YYYYMMDD-style date strings such
+   as 20200102 (month 20 is impossible) fall through to the date parser
+   instead of shadowing it, matching GNU date.  */
+static int
 is_mmdd_format (const char *s)
 {
   if (!s)
     return 0;
   size_t len = strlen (s);
-  if (len < 8 || len > 15)
+  if (len < 8 || len > 11)
     return 0;
   const char *dot = strchr (s, '.');
   const char *num_end = dot ? dot : s + len;
-  for (const char *q = s; q < num_end; q++)
-    {
-      if (!isdigit ((unsigned char) *q))
-	return 0;
-    }
-  if (dot)
-    {
-      if (strlen (dot + 1) != 2)
-	return 0;
-      if (!isdigit ((unsigned char) dot[1])
-	  || !isdigit ((unsigned char) dot[2]))
-	return 0;
-    }
-  return 1;
+  if ((size_t) (num_end - s) != 8)
+    return 0;
+  if (dot && (strlen (dot + 1) != 2
+	      || !isdigit ((unsigned char) dot[1])
+	      || !isdigit ((unsigned char) dot[2])))
+    return 0;
+  int mm = (s[0] - '0') * 10 + (s[1] - '0');
+  int dd = (s[2] - '0') * 10 + (s[3] - '0');
+  int hh = (s[4] - '0') * 10 + (s[5] - '0');
+  int mi = (s[6] - '0') * 10 + (s[7] - '0');
+  return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh <= 23 && mi <= 59;
 }
 
-static void
-set_legacy_format (const char *fmt, const char **legacy_fmt,
-		   int *use_timestamp, char **iso_fmt, char **rfc3339_fmt,
-		   int *rfc_email, char **custom_fmt)
+/* Everything the operand scan and option parsing select for the output.  */
+struct output_selection
 {
-  *legacy_fmt = fmt;
-  *use_timestamp = 0;
-  free (*iso_fmt);
-  *iso_fmt = NULL;
-  free (*rfc3339_fmt);
-  *rfc3339_fmt = NULL;
-  *rfc_email = 0;
-  free (*custom_fmt);
-  *custom_fmt = NULL;
+  char *date_str;		/* --date=STRING (-d) */
+  char *file_path;		/* --file=DATEFILE (-f) */
+  char *reference_path;		/* --reference=FILE (-r) */
+  char *iso_fmt;		/* --iso-8601[=FMT] */
+  char *rfc3339_fmt;		/* --rfc-3339=FMT */
+  int rfc_email;		/* --rfc-email (-R) */
+  int resolution;		/* --resolution */
+  char *set_str;		/* --set=STRING / MMDDhhmm operand */
+  char *custom_fmt;		/* +FORMAT operand */
+  const char *legacy_fmt;	/* legacy format name */
+  int use_timestamp;		/* nonzero: UTC YYYYMMDDhhmmssZ format */
+};
+
+/* Legacy formats selectable by long option, kept in one place.  */
+static const struct
+{
+  int val;
+  const char *format;
+} opt_formats[] = {
+  {1006, "%Y-%m-%d %H:%M:%S"},
+  {1007, "%Y%m%dT%H%M%S"},
+  {1008, "%Y-%m-%d"},
+  {1009, "%Y%m%d"},
+  {1010, "%Y-%j"},
+  {1011, "%Y%j"},
+  {1012, "%G-W%V-%u"},
+  {1013, "%GW%V%u"},
+  {0, NULL}
+};
+
+static const char *
+lookup_opt_format (int val)
+{
+  for (int i = 0; opt_formats[i].format != NULL; i++)
+    if (opt_formats[i].val == val)
+      return opt_formats[i].format;
+  return NULL;
+}
+
+/* --timestamp: select the UTC YYYYMMDDhhmmssZ format.  */
+static void
+select_timestamp_format (struct output_selection *os)
+{
+  os->legacy_fmt = "%Y%m%d%H%M%SZ";
+  os->use_timestamp = 1;
+}
+
+/* A legacy format name supersedes every other output selection.  */
+static void
+select_legacy_format (const char *fmt, struct output_selection *os)
+{
+  os->legacy_fmt = fmt;
+  os->use_timestamp = 0;
+  free (os->iso_fmt);
+  os->iso_fmt = NULL;
+  free (os->rfc3339_fmt);
+  os->rfc3339_fmt = NULL;
+  os->rfc_email = 0;
+  free (os->custom_fmt);
+  os->custom_fmt = NULL;
+}
+
+/* Nonzero if ARG is an option that requires a value in the next argv
+   element (-d, -f, -r, -s, --rfc-3339, or the long spellings).  */
+static int
+option_wants_arg (const char *arg)
+{
+  static const char *const names[] = {
+    "-d", "-f", "-r", "-s", "--date", "--file", "--reference", "--set",
+    "--rfc-3339", NULL
+  };
+  for (int i = 0; names[i] != NULL; i++)
+    if (strcmp (arg, names[i]) == 0)
+      return 1;
+  return 0;
+}
+
+/* Classify a non-option operand ARG and record it in OS.  Returns 1 if the
+   operand was consumed (+FORMAT or a legacy format name), 0 if it is not
+   one of those, -1 on allocation failure.  */
+static int
+scan_operand (const char *arg, struct output_selection *os)
+{
+  if (arg[0] == '+' && arg[1] != '\0')
+    {
+      char *copy = strdup (arg + 1);
+      if (!copy)
+	return -1;
+      free (os->custom_fmt);
+      os->custom_fmt = copy;
+      return 1;
+    }
+  const char *lf = match_format (arg);
+  if (lf)
+    {
+      select_legacy_format (lf, os);
+      return 1;
+    }
+  return 0;
 }
 
 struct format_options
@@ -1170,68 +1290,81 @@ format_datetime_output (const struct timespec *ts,
     }
 }
 
+/* Print one output line and export it for the calling shell.  */
+static void
+emit_line (const char *outbuf)
+{
+  char *env_var = "_currentdatetime";
+#ifdef _WIN32
+  SetEnvironmentVariable (env_var, outbuf);
+#else
+  setenv (env_var, outbuf, 1);
+#endif
+  printf ("%s\n", outbuf);
+}
+
 /* ---------------- main ---------------- */
 
 int
 main (int argc, char **argv)
 {
-#ifdef TIMESTAMP
-  int use_timestamp = 1;
-#else
-  int use_timestamp = 0;
-#endif
-  const char *legacy_fmt = NULL;
-
-  char *date_str = NULL;
-  char *file_path = NULL;
-  char *reference_path = NULL;
-  char *iso_fmt = NULL;
-  char *rfc3339_fmt = NULL;
-  int rfc_email = 0;
-  int resolution = 0;
-  char *set_str = NULL;
-  char *custom_fmt = NULL;
+  struct output_selection os = { 0 };
   int help_flag = 0;
   int version_flag = 0;
   int exit_code = 0;
   FILE *fp = NULL;
+  char **filtered_argv = NULL;
+  int filtered_argc = 0;
 
-  char **filtered_argv = malloc ((argc + 1) * sizeof (char *));
+  /* Pass 1: peel +FORMAT, legacy format names and MMDDhhmm operands off
+     argv so getopt_long sees only real options and their arguments.  */
+  filtered_argv = malloc ((argc + 1) * sizeof (char *));
   if (!filtered_argv)
     {
       perror ("malloc");
       return 1;
     }
-  int filtered_argc = 1;
+  filtered_argc = 1;
   filtered_argv[0] = argv[0];
+  int prev_wants_arg = 0;
   for (int i = 1; i < argc; i++)
     {
       const char *a = argv[i];
-      if (a[0] == '+' && a[1] != '\0')
+      /* This element is the value of a pending option; hand it through
+         untouched so getopt_long can pair it (e.g. -d 20200102).  */
+      if (prev_wants_arg)
 	{
-	  free (custom_fmt);
-	  custom_fmt = strdup (a + 1);
-	  if (!custom_fmt)
+	  filtered_argv[filtered_argc++] = argv[i];
+	  prev_wants_arg = 0;
+	  continue;
+	}
+      int st = scan_operand (a, &os);
+      if (st == 1)
+	continue;
+      if (st == -1)
+	{
+	  perror ("strdup");
+	  exit_code = 1;
+	  goto cleanup;
+	}
+      /* A leading numeric operand is a set-time request: MMDDhhmm[.ss]
+         directly, any other digit string as a date (e.g. 20200102 ->
+         2020-01-02), matching GNU date's positional handling.  */
+      if (is_mmdd_format (a) || is_all_digits (a))
+	{
+	  char *copy = strdup (a);
+	  if (!copy)
 	    {
 	      perror ("strdup");
 	      exit_code = 1;
 	      goto cleanup;
 	    }
+	  free (os.set_str);
+	  os.set_str = copy;
 	  continue;
 	}
-      const char *lf = match_format (a);
-      if (lf)
-	{
-	  set_legacy_format (lf, &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  continue;
-	}
-      if (is_mmdd_format (a))
-	{
-	  free (set_str);
-	  set_str = strdup (a);
-	  continue;
-	}
+      if (option_wants_arg (a))
+	prev_wants_arg = 1;
       filtered_argv[filtered_argc++] = argv[i];
     }
   filtered_argv[filtered_argc] = NULL;
@@ -1272,15 +1405,15 @@ main (int argc, char **argv)
       switch (c)
 	{
 	case 'd':
-	  free (date_str);
-	  date_str = strdup (optarg);
+	  free (os.date_str);
+	  os.date_str = strdup (optarg);
 	  break;
 	case 1000:
 	  g_debug = 1;
 	  break;
 	case 'f':
-	  free (file_path);
-	  file_path = strdup (optarg);
+	  free (os.file_path);
+	  os.file_path = strdup (optarg);
 	  break;
 	case 'I':
 	  {
@@ -1304,16 +1437,16 @@ main (int argc, char **argv)
 		exit_code = 1;
 		goto cleanup;
 	      }
-	    free (iso_fmt);
-	    iso_fmt = strdup (val);
+	    free (os.iso_fmt);
+	    os.iso_fmt = strdup (val);
 	  }
 	  break;
 	case 1001:
-	  resolution = 1;
+	  os.resolution = 1;
 	  break;
 	case 'R':
-	  rfc_email = 1;
-	  legacy_fmt = NULL;
+	  os.rfc_email = 1;
+	  os.legacy_fmt = NULL;
 	  break;
 	case 1002:
 	  {
@@ -1326,17 +1459,17 @@ main (int argc, char **argv)
 		exit_code = 1;
 		goto cleanup;
 	      }
-	    free (rfc3339_fmt);
-	    rfc3339_fmt = strdup (val);
+	    free (os.rfc3339_fmt);
+	    os.rfc3339_fmt = strdup (val);
 	  }
 	  break;
 	case 'r':
-	  free (reference_path);
-	  reference_path = strdup (optarg);
+	  free (os.reference_path);
+	  os.reference_path = strdup (optarg);
 	  break;
 	case 's':
-	  free (set_str);
-	  set_str = strdup (optarg);
+	  free (os.set_str);
+	  os.set_str = strdup (optarg);
 	  break;
 	case 'u':
 	  g_utc = 1;
@@ -1348,58 +1481,25 @@ main (int argc, char **argv)
 	  version_flag = 1;
 	  break;
 	case 1005:
-	  legacy_fmt = "%Y%m%d%H%M%SZ";
-	  use_timestamp = 1;
+	  select_timestamp_format (&os);
 	  break;
 	case 1006:
-	  set_legacy_format ("%Y-%m-%d %H:%M:%S", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1007:
-	  set_legacy_format ("%Y%m%dT%H%M%S", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1008:
-	  set_legacy_format ("%Y-%m-%d", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1009:
-	  set_legacy_format ("%Y%m%d", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1010:
-	  set_legacy_format ("%Y-%j", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1011:
-	  set_legacy_format ("%Y%j", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1012:
-	  set_legacy_format ("%G-W%V-%u", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  break;
 	case 1013:
-	  set_legacy_format ("%GW%V%u", &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
+	  select_legacy_format (lookup_opt_format (c), &os);
 	  break;
 	case '?':
 	  {
+	    /* getopt_long stopped at something that looks like an option;
+	       it may be a legacy format name or a bare '+'.  */
 	    const char *arg = filtered_argv[optind - 1];
-	    const char *lf2 = match_format (arg);
-	    if (lf2)
-	      {
-		set_legacy_format (lf2, &legacy_fmt, &use_timestamp,
-				   &iso_fmt, &rfc3339_fmt, &rfc_email,
-				   &custom_fmt);
-		break;
-	      }
-	    if (arg[0] == '+')
-	      {
-		free (custom_fmt);
-		custom_fmt = strdup (arg + 1);
-		break;
-	      }
+	    if (scan_operand (arg, &os) == 1)
+	      break;
 	    fprintf (stderr, "datetime: unknown option '%s'\n", arg);
 	    fprintf (stderr, "Try 'datetime --help' for more information.\n");
 	    exit_code = 1;
@@ -1412,27 +1512,9 @@ main (int argc, char **argv)
 
   for (int i = optind; i < filtered_argc; i++)
     {
-      const char *a = filtered_argv[i];
-      if (a[0] == '+' && a[1] != '\0')
-	{
-	  free (custom_fmt);
-	  custom_fmt = strdup (a + 1);
-	  continue;
-	}
-      const char *lf = match_format (a);
-      if (lf)
-	{
-	  set_legacy_format (lf, &legacy_fmt, &use_timestamp,
-			     &iso_fmt, &rfc3339_fmt, &rfc_email, &custom_fmt);
-	  continue;
-	}
-      if (is_mmdd_format (a))
-	{
-	  free (set_str);
-	  set_str = strdup (a);
-	  continue;
-	}
-      fprintf (stderr, "datetime: unknown option '%s'\n", a);
+      if (scan_operand (filtered_argv[i], &os) == 1)
+	continue;
+      fprintf (stderr, "datetime: unknown option '%s'\n", filtered_argv[i]);
       fprintf (stderr, "Try 'datetime --help' for more information.\n");
       exit_code = 1;
       goto cleanup;
@@ -1455,13 +1537,13 @@ main (int argc, char **argv)
     }
 
   int count_exclusive = 0;
-  if (date_str)
+  if (os.date_str)
     count_exclusive++;
-  if (file_path)
+  if (os.file_path)
     count_exclusive++;
-  if (reference_path)
+  if (os.reference_path)
     count_exclusive++;
-  if (resolution)
+  if (os.resolution)
     count_exclusive++;
   if (count_exclusive > 1)
     {
@@ -1472,7 +1554,7 @@ main (int argc, char **argv)
       goto cleanup;
     }
 
-  if (resolution)
+  if (os.resolution)
     {
       printf ("0.000000001\n");
       if (g_debug)
@@ -1483,25 +1565,24 @@ main (int argc, char **argv)
     }
 
   struct format_options fmt_opts = {
-    .iso_fmt = iso_fmt,
-    .rfc3339_fmt = rfc3339_fmt,
-    .rfc_email = rfc_email,
-    .custom_fmt = custom_fmt,
-    .legacy_fmt = legacy_fmt,
-    .use_timestamp = use_timestamp,
+    .iso_fmt = os.iso_fmt,
+    .rfc3339_fmt = os.rfc3339_fmt,
+    .rfc_email = os.rfc_email,
+    .custom_fmt = os.custom_fmt,
+    .legacy_fmt = os.legacy_fmt,
+    .use_timestamp = os.use_timestamp,
     .utc = g_utc
   };
-
-  if (file_path)
+  if (os.file_path)
     {
-      if (!strcmp (file_path, "-"))
+      if (!strcmp (os.file_path, "-"))
 	fp = stdin;
       else
 	{
-	  fp = fopen (file_path, "r");
+	  fp = fopen (os.file_path, "r");
 	  if (!fp)
 	    {
-	      fprintf (stderr, "datetime: %s: %s\n", file_path,
+	      fprintf (stderr, "datetime: %s: %s\n", os.file_path,
 		       strerror (errno));
 	      exit_code = 1;
 	      goto cleanup;
@@ -1530,9 +1611,10 @@ main (int argc, char **argv)
 	      p[pl - 1] = '\0';
 	      pl--;
 	    }
+
 	  if (g_debug)
-	    fprintf (stderr, "debug: file %s:%d: parsing '%s'\n", file_path,
-		     line_no, p);
+	    fprintf (stderr, "debug: file %s:%d: parsing '%s'\n",
+		     os.file_path, line_no, p);
 	  struct timespec ts;
 	  if (!parse_date_string (p, &ts, g_utc, g_debug))
 	    {
@@ -1544,22 +1626,11 @@ main (int argc, char **argv)
 	  if (format_datetime_output (&ts, &fmt_opts, outbuf, sizeof (outbuf))
 	      != 0)
 	    {
-	      if (use_timestamp)
-		snprintf (outbuf, sizeof (outbuf), "%ld", (long) ts.tv_sec);
-	      else
-		{
-		  fprintf (stderr, "datetime: failed to format time\n");
-		  exit_code = 1;
-		  continue;
-		}
+	      fprintf (stderr, "datetime: failed to format time\n");
+	      exit_code = 1;
+	      continue;
 	    }
-	  char *env_var = "_currentdatetime";
-#ifdef _WIN32
-	  SetEnvironmentVariable (env_var, outbuf);
-#else
-	  setenv (env_var, outbuf, 1);
-#endif
-	  printf ("%s\n", outbuf);
+	  emit_line (outbuf);
 	}
       goto cleanup;
     }
@@ -1567,53 +1638,22 @@ main (int argc, char **argv)
   struct timespec ts;
   int have_ts = 0;
 
-  if (set_str)
+  if (os.set_str)
     {
-      if (is_mmdd_format (set_str))
+      if (parse_mmddhhmm (os.set_str, &ts, g_utc))
 	{
-	  char buf[32];
-	  strncpy (buf, set_str, sizeof (buf) - 1);
-	  buf[sizeof (buf) - 1] = '\0';
-	  const char *dot = strchr (set_str, '.');
-	  const char *num_end = dot ? dot : set_str + strlen (set_str);
-	  size_t len = (size_t) (num_end - set_str);
-	  if (len == 8)
-	    {
-	      char mm[3] = { 0 }, dd[3] = { 0 }, hh[3] = { 0 }, mi[3] = { 0 };
-	      memcpy (mm, buf, 2);
-	      memcpy (dd, buf + 2, 2);
-	      memcpy (hh, buf + 4, 2);
-	      memcpy (mi, buf + 6, 2);
-	      time_t now = time (NULL);
-	      struct tm tm;
-	      if (g_utc)
-		gmtime_r (&now, &tm);
-	      else
-		localtime_r (&now, &tm);
-	      int year = tm.tm_year + 1900;
-	      memset (&tm, 0, sizeof (tm));
-	      tm.tm_mon = atoi (mm) - 1;
-	      tm.tm_mday = atoi (dd);
-	      tm.tm_hour = atoi (hh);
-	      tm.tm_min = atoi (mi);
-	      tm.tm_sec = dot ? atoi (dot + 1) : 0;
-	      tm.tm_year = year - 1900;
-	      tm.tm_isdst = -1;
-	      time_t t = g_utc ? timegm (&tm) : mktime (&tm);
-	      ts.tv_sec = t;
-	      ts.tv_nsec = 0;
-	      have_ts = 1;
-	      debug_log ("parsed MMDDhhmm '%s' -> %s", set_str, ctime (&t));
-	    }
+	  have_ts = 1;
+	  debug_log ("parsed MMDDhhmm '%s' -> %s", os.set_str,
+		     ctime (&ts.tv_sec));
 	}
-      if (!have_ts)
+      else if (!parse_date_string (os.set_str, &ts, g_utc, g_debug))
 	{
-	  if (!parse_date_string (set_str, &ts, g_utc, g_debug))
-	    {
-	      fprintf (stderr, "datetime: invalid date '%s'\n", set_str);
-	      exit_code = 1;
-	      goto cleanup;
-	    }
+	  fprintf (stderr, "datetime: invalid date '%s'\n", os.set_str);
+	  exit_code = 1;
+	  goto cleanup;
+	}
+      else
+	{
 	  have_ts = 1;
 	}
 #ifdef __linux__
@@ -1651,40 +1691,41 @@ main (int argc, char **argv)
 		 (long) ts.tv_sec);
 #endif
     }
-  else if (date_str)
+  else if (os.date_str)
     {
-      if (!parse_date_string (date_str, &ts, g_utc, g_debug))
+      if (!parse_date_string (os.date_str, &ts, g_utc, g_debug))
 	{
-	  fprintf (stderr, "datetime: invalid date '%s'\n", date_str);
+	  fprintf (stderr, "datetime: invalid date '%s'\n", os.date_str);
 	  exit_code = 1;
 	  goto cleanup;
 	}
       have_ts = 1;
     }
-  else if (reference_path)
+  else if (os.reference_path)
     {
       struct stat st;
-      if (stat (reference_path, &st) != 0)
+      if (stat (os.reference_path, &st) != 0)
 	{
-	  fprintf (stderr, "datetime: %s: %s\n", reference_path,
+	  fprintf (stderr, "datetime: %s: %s\n", os.reference_path,
 		   strerror (errno));
 	  exit_code = 1;
 	  goto cleanup;
 	}
       ts.tv_sec = st.st_mtime;
-#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
-#if defined(st_mtim)
-      ts.tv_nsec = st.st_mtim.tv_nsec;
-#elif defined(st_mtimespec)
+      /* Sub-second precision: POSIX >= 200809L exposes struct st_mtim on
+         Linux and current *BSD; Darwin and older BSD use st_mtimespec.
+         The previous #if defined(st_mtim) was always false because st_mtim
+         is a struct field, not a preprocessor macro, so nanoseconds were
+         silently zeroed.  */
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
       ts.tv_nsec = st.st_mtimespec.tv_nsec;
-#else
+#elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L
+      ts.tv_nsec = st.st_mtim.tv_nsec;
+#else /* no sub-second mtime field on this platform */
       ts.tv_nsec = 0;
-#endif
-#else
-      ts.tv_nsec = 0;
-#endif
+#endif /* sub-second mtime field */
       have_ts = 1;
-      debug_log ("reference file '%s' mtime %ld", reference_path,
+      debug_log ("reference file '%s' mtime %ld", os.reference_path,
 		 (long) ts.tv_sec);
     }
   else
@@ -1704,35 +1745,30 @@ main (int argc, char **argv)
   if (g_debug)
     {
       fprintf (stderr, "debug: output format '%s' -> '%s'\n",
-	       iso_fmt ? iso_fmt : rfc3339_fmt ? rfc3339_fmt : custom_fmt ?
-	       custom_fmt : legacy_fmt ? legacy_fmt : "default", outbuf);
-      if (date_str)
+	       os.iso_fmt ? os.iso_fmt
+	       : os.rfc3339_fmt ? os.rfc3339_fmt
+	       : os.custom_fmt ? os.custom_fmt
+	       : os.legacy_fmt ? os.legacy_fmt : "default", outbuf);
+      if (os.date_str)
 	fprintf (stderr, "debug: input date '%s' parsed as %ld.%09ld\n",
-		 date_str, (long) ts.tv_sec, (long) ts.tv_nsec);
-      if (reference_path)
-	fprintf (stderr, "debug: reference file '%s'\n", reference_path);
+		 os.date_str, (long) ts.tv_sec, (long) ts.tv_nsec);
+      if (os.reference_path)
+	fprintf (stderr, "debug: reference file '%s'\n", os.reference_path);
     }
 
-  char *env_var = "_currentdatetime";
-#ifdef _WIN32
-  SetEnvironmentVariable (env_var, outbuf);
-#else
-  setenv (env_var, outbuf, 1);
-#endif
-
-  printf ("%s\n", outbuf);
+  emit_line (outbuf);
   exit_code = 0;
 
 cleanup:
   if (fp && fp != stdin)
     fclose (fp);
   free (filtered_argv);
-  free (date_str);
-  free (file_path);
-  free (reference_path);
-  free (iso_fmt);
-  free (rfc3339_fmt);
-  free (set_str);
-  free (custom_fmt);
+  free (os.date_str);
+  free (os.file_path);
+  free (os.reference_path);
+  free (os.iso_fmt);
+  free (os.rfc3339_fmt);
+  free (os.set_str);
+  free (os.custom_fmt);
   return exit_code;
 }

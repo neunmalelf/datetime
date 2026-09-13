@@ -11,10 +11,10 @@ libdir = $(exec_prefix)/lib
 datadir = $(prefix)/lib
 includedir = $(prefix)/include
 oldincludedir = /usr/include
-mandir = $(prefix)/man
+mandir = $(prefix)/share/man
 man1dir = $(mandir)/man1
 manext = .1
-infodir = $(prefix)/info
+infodir = $(prefix)/share/info
 srcdir = .
 
 # OS-specific overrides
@@ -24,7 +24,8 @@ bindir = $(HOME)/sbin
 mandir = $(HOME)/.local/share/man
 man1dir = $(mandir)/man1
 TARGET  := datetime.exe
-TARGET2 := timestamp.exe
+else
+TARGET  ?= datetime
 endif
 
 ifeq ($(UNAME_S),Darwin)
@@ -37,12 +38,10 @@ endif
 bindir = $(prefix)/bin
 endif
 
-# Project-specific install destination (defaults to ~/sbin for user-local install)
-PREFIX ?= $(HOME)/sbin
-ifeq ($(PREFIX),$(HOME)/sbin)
-bindir = $(HOME)/sbin
-mandir = $(HOME)/.local/share/man
-man1dir = $(mandir)/man1
+# Command-line override: PREFIX=$$HOME/sbin make install
+# (GNU convention: prefix defaults to /usr/local; exec_prefix/bindir follow it)
+ifneq ($(strip $(PREFIX)),)
+prefix = $(PREFIX)
 endif
 
 CC      ?= gcc
@@ -58,35 +57,30 @@ INSTALL_DATA = $(INSTALL) -m 644
 # For mkdir -p portability
 MKDIR_P = mkdir -p
 
-# Targets (handle Windows .exe)
-ifndef OS
-TARGET  ?= datetime
-TARGET2 ?= timestamp
-endif
-SRC     := $(srcdir)/datetime.c
-TARGETS := $(TARGET) $(TARGET2)
+# Texinfo programs (used by the `info' and `dvi' targets)
+MAKEINFO = makeinfo
+TEXI2DVI = texi2dvi
 
-# Build number (YYYYMMDDHHMMSSZ, UTC), regenerated before every compilation.
-# Microversion x.x.<timestamp> must use timestamp (UTC compact seconds).
-# Try local ./timestamp first (freshly built), then ~/sbin/timestamp, then date -u fallback
-# so first build on clean system still works. `version.h` is regenerated on every build via FORCE.
+SRC     := $(srcdir)/datetime.c
+TARGETS := $(TARGET)
+
+# Build number (YYYYMMDDHHMMSSZ, UTC), evaluated once per make invocation.
+# Microversion x.x.<build> must use timestamp (UTC compact seconds).
+# Try the just-built binary first, then an installed copy, then the date -u
+# fallback so the first build on a clean system still works.  Passed to the
+# compiler with -DVERSION_BUILD instead of a generated version.h, so a manual
+#   cc -std=c99 datetime.c
+# falls back to the #ifndef VERSION_BUILD default in datetime.c.
+BUILD := $(shell ./datetime --timestamp 2>/dev/null || ~/sbin/datetime --timestamp 2>/dev/null || date -u +"%Y%m%d%H%M%SZ" 2>/dev/null || echo 20260909000000Z)
+
 all: $(TARGETS)
 
-# Regenerate the build number before every compilation.
-version.h: FORCE
-	@BUILD=$$(./timestamp 2>/dev/null || ~/sbin/timestamp 2>/dev/null || date -u +"%Y%m%d%H%M%SZ" 2>/dev/null || echo "20260909000000Z"); printf '#define VERSION_BUILD "%s"\n' "$$BUILD" > $@
-
-$(TARGET): $(SRC) version.h
-	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -o $@ $(SRC) $(LDFLAGS)
-
-$(TARGET2): $(SRC) version.h
-	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -DTIMESTAMP -o $@ $(SRC) $(LDFLAGS)
+$(TARGET): $(SRC)
+	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -DVERSION_BUILD=\"$(BUILD)\" -o $@ $(SRC) $(LDFLAGS)
 
 # Implicit rule for .c.o to support VPATH (5.1)
 .c.o:
 	$(CC) -c $(ALL_CFLAGS) $(CPPFLAGS) $< -o $@
-
-FORCE:
 
 # Standard targets for users (5.2)
 info: datetime.info
@@ -103,32 +97,28 @@ install: $(TARGETS)
 	@$(MKDIR_P) "$(DESTDIR)$(bindir)"
 	-@$(MKDIR_P) "$(DESTDIR)$(man1dir)" 2>/dev/null || true
 	$(INSTALL_PROGRAM) $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
-	$(INSTALL_PROGRAM) $(TARGET2) "$(DESTDIR)$(bindir)/$(TARGET2)"
-	-$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)" 2>/dev/null || true
+	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
 ifeq ($(OS),Windows_NT)
 	-@mkdir -p "$(HOME)/sbin" 2>/dev/null || true
 	-$(INSTALL_PROGRAM) $(TARGET) "$(HOME)/sbin/$(TARGET)" 2>/dev/null || true
-	-$(INSTALL_PROGRAM) $(TARGET2) "$(HOME)/sbin/$(TARGET2)" 2>/dev/null || true
 endif
 
 install-strip: $(TARGETS)
 	@$(MKDIR_P) "$(DESTDIR)$(bindir)"
 	-@$(MKDIR_P) "$(DESTDIR)$(man1dir)" 2>/dev/null || true
 	$(INSTALL_PROGRAM) -s $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
-	$(INSTALL_PROGRAM) -s $(TARGET2) "$(DESTDIR)$(bindir)/$(TARGET2)"
-	-$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)" 2>/dev/null || true
+	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/$(TARGET)" "$(DESTDIR)$(bindir)/$(TARGET2)"
-	rm -f "$(DESTDIR)$(man1dir)/datetime$(manext)"
+	rm -f "$(DESTDIR)$(bindir)/$(TARGET)"
 	# Remove legacy ~/sbin install if different from bindir
-	@case "$(bindir)" in "$(HOME)/sbin") true;; *) rm -f "$(PREFIX)/$(TARGET)" "$(PREFIX)/$(TARGET2)" 2>/dev/null || true;; esac
+	@case "$(bindir)" in "$(HOME)/sbin") true;; *) rm -f "$(PREFIX)/$(TARGET)" 2>/dev/null || true;; esac
 ifeq ($(OS),Windows_NT)
-	rm -f "$(HOME)/sbin/$(TARGET)" "$(HOME)/sbin/$(TARGET2)" 2>/dev/null || true
+	rm -f "$(HOME)/sbin/$(TARGET)" 2>/dev/null || true
 endif
 
 clean:
-	rm -f $(TARGETS) version.h *.o
+	rm -f $(TARGETS) *.o
 	rm -f datetime.exe timestamp.exe
 
 mostlyclean: clean
@@ -137,6 +127,7 @@ mostlyclean: clean
 distclean: clean
 	rm -f config.status config.log
 	rm -f datetime.info datetime.dvi
+	rm -f datetime.log datetime.aux
 
 realclean: distclean
 	rm -f TAGS tags
@@ -147,21 +138,20 @@ TAGS: $(SRC) $(srcdir)/manual.texi
 
 tags: TAGS
 
-dist: version.h $(SRC) $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1
+dist: $(SRC) $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1
 	@ver=`grep '^#define VERSION_MINOR' $(srcdir)/datetime.c | sed 's/.*"\([0-9]*\)".*/\1/'`; \
 	maj=`grep '^#define VERSION_MAJOR' $(srcdir)/datetime.c | sed 's/.*"\([0-9]*\)".*/\1/'`; \
-	build=`cat version.h 2>/dev/null | sed 's/.*"\([0-9A-Z]*\)".*/\1/'`; \
-	dir=datetime-$$maj.$$ver.$$build; \
+	dir=datetime-$$maj.$$ver.$(BUILD); \
 	rm -rf $$dir; mkdir -p $$dir; \
 	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $$dir/ 2>/dev/null || true; \
 	mkdir -p $$dir/man/man1 $$dir/tldr; cp -p $(srcdir)/man/man1/datetime.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $$dir/tldr/ 2>/dev/null || true; \
 	tar -czf $$dir.tar.gz $$dir; rm -rf $$dir; echo "Created $$dir.tar.gz"
 
 # Syntax check only (no code generation).
-check-syntax: version.h
-	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -fsyntax-only $(SRC)
+check-syntax:
+	$(CC) $(ALL_CFLAGS) $(CPPFLAGS) -DVERSION_BUILD=\"$(BUILD)\" -fsyntax-only $(SRC)
 
-# GNU style check (8 Formatting Your Source Code) – indent -gnu or clang-format --style=GNU
+# GNU style check (8 Formatting Your Source Code) - indent -gnu or clang-format --style=GNU
 check-style: $(SRC)
 	@if command -v indent >/dev/null 2>&1; then \
 		echo "check-style: indent -gnu"; \
@@ -185,20 +175,19 @@ check-mem: $(TARGETS)
 		fi; \
 	}
 	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TARGET)
-	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TARGET2)
 	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TARGET) --timestamp
-	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TARGET2) --timestamp
+	@echo "check-mem: error paths (cleanup/free on failure)"
+	@for c in "--bogus-flag" "-d not-a-date" "-r /no/such/file" "-d now --file -"; do \
+		valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=99 ./$(TARGET) $$c >/dev/null 2>&1; \
+		rc=$$?; \
+		if [ $$rc -ne 0 ] && [ $$rc -ne 1 ]; then \
+			echo "error: valgrind reported errors (rc=$$rc) on: $$c"; exit 1; \
+		fi; \
+	done
 
 # Test suites execution
 check-test: $(TARGETS)
-	@echo "Running bash test suites..."
-	@./tests/_test_datetime
-	@./tests/_test_combinatorial
-	@if command -v python3 >/dev/null 2>&1; then \
-		echo "Running Python pytest suites..."; \
-		python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v; \
-	fi
+	@echo "Running all test suites (via ./_tests)..."
+	@./_tests
 
 check: check-syntax check-mem check-style check-test
-
-.PHONY: all info dvi install install-strip uninstall clean mostlyclean distclean realclean TAGS tags dist check-syntax check-mem check-style check-test check FORCE

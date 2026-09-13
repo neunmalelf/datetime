@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# _tests -- run every test suite found in ./tests, in order.
+#
+# Usage: ./_tests [--details]
+#   Without --details: one summary line per suite plus a final overall
+#   result (suite chatter is collapsed; failures are still shown).
+#   With --details: forward the flag to suites that support it and show
+#   every case as it runs, with "OK" in green and "FAILED" in red.
+#
+# Exit code: 0 if all suites pass, 1 otherwise.
+set -u
+export LC_ALL=C
+
+cd "$(dirname "$0")" || exit 1
+: "${BIN:=$PWD/datetime}"
+export BIN
+
+if [[ ! -x "$BIN" ]]; then
+  echo "_tests: $BIN not found or not executable; run 'make' first." >&2
+  exit 2
+fi
+
+DETAILS=0
+for arg in "$@"; do
+  case $arg in
+    --details) DETAILS=1 ;;
+    *)
+      echo "usage: $0 [--details]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ $DETAILS -eq 1 && ( -t 1 || -t 2 || -n "${FORCE_COLOR:-}" ) ]]; then
+  GREEN=$'\033[32m'
+  RED=$'\033[31m'
+  RESET=$'\033[0m'
+  BOLD=$'\033[1m'
+else
+  GREEN=""; RED=""; RESET=""; BOLD=""
+fi
+ok_label() { printf '%sOK%s' "$GREEN" "$RESET"; }
+failed_label() { printf '%sFAILED%s' "$RED" "$RESET"; }
+
+# --------------------------------------------------------------- suite list
+# Executable suites in ./tests, sorted for a stable order.  Suites that
+# understand --details get the flag forwarded (only in details mode).
+suites=()
+for f in tests/*; do
+  [[ -f $f && -x $f && ! -d $f ]] || continue
+  case ${f##*/} in
+    test_*) continue ;;      # pytest files are collected below, not run directly
+    _*)      suites+=("$f") ;;
+  esac
+done
+if [[ ${#suites[@]} -eq 0 ]]; then
+  echo "_tests: no executable suites found in ./tests" >&2
+  exit 2
+fi
+
+have_pytest=0
+if command -v python3 >/dev/null 2>&1 \
+   && python3 -m pytest --version >/dev/null 2>&1 \
+   && compgen -G 'tests/test_*.py' >/dev/null; then
+  have_pytest=1
+fi
+
+# --------------------------------------------------------------- run suites
+overall=0
+declare -a results=()
+
+run_suite() {
+  local name="$1"
+  shift
+  local log rc
+  log=$(mktemp)
+  "$@" >"$log" 2>&1
+  rc=$?
+  if [[ $DETAILS -eq 1 ]]; then
+    # Show everything: per-case lines carry their own colors where the
+    # suite supports it; FORCE_COLOR was exported so the matrix suite
+    # colors even inside this capture-free path.
+    FORCE_COLOR=1 "$@" | sed "s/^/  /"
+    rc=${PIPESTATUS[0]}
+  else
+    # Quiet mode: collapse to the suite's summary line(s); still surface
+    # any failed-case lines the suite printed.
+    grep -E '^FAIL|FAILED|failed cases|^  matrix|Summary' "$log" | sed 's/^/  /'
+  fi
+  rm -f "$log"
+  if [[ $rc -eq 0 ]]; then
+    results+=("$(ok_label)  $name")
+  else
+    results+=("$(failed_label)  $name (rc=$rc)")
+    overall=1
+  fi
+}
+
+echo "=== running test suites from ./tests ==="
+
+for s in "${suites[@]}"; do
+  case $s in
+    tests/_test_matrix)
+      echo "--- $s ---"
+      if [[ $DETAILS -eq 1 ]]; then
+        # Suite prints its own per-case lines with colors.
+        FORCE_COLOR=1 ./tests/_test_matrix --details
+        rc=${PIPESTATUS[0]}
+        if [[ $rc -eq 0 ]]; then
+          results+=("$(ok_label)  $s")
+        else
+          results+=("$(failed_label)  $s (rc=$rc)")
+          overall=1
+        fi
+      else
+        run_suite "$s" ./tests/_test_matrix
+      fi
+      ;;
+    *)
+      echo "--- $s ---"
+      run_suite "$s" "./$s"
+      ;;
+  esac
+done
+
+# pytest suites
+if [[ $have_pytest -eq 1 ]]; then
+  echo "--- tests/test_*.py (pytest) ---"
+  pytest_args=(tests/test_granular.py tests/test_exhaustive.py -q)
+  pytest_out=$(python3 -m pytest "${pytest_args[@]}" 2>&1)
+  pytest_rc=$?
+  if [[ $DETAILS -eq 1 ]]; then
+    printf '%s\n' "$pytest_out" | sed 's/^/  /'
+  else
+    printf '%s\n' "$pytest_out" | grep -E 'passed|failed|error' | tail -2 | sed 's/^/  /'
+  fi
+  if [[ $pytest_rc -eq 0 ]]; then
+    results+=("$(ok_label)  pytest")
+  else
+    results+=("$(failed_label)  pytest (rc=$pytest_rc)")
+    overall=1
+  fi
+else
+  if [[ $DETAILS -eq 1 ]]; then
+    echo "  (python3/pytest unavailable or no test_*.py files; skipping)"
+  fi
+fi
+
+# --------------------------------------------------------------- summary
+echo ""
+echo "=== overall results ==="
+for r in "${results[@]}"; do
+  echo "  $r"
+done
+if [[ $overall -eq 0 ]]; then
+  printf '%sAll suites passed.%s\n' "$GREEN" "$RESET"
+else
+  printf '%sSOME SUITES FAILED.%s\n' "$RED" "$RESET"
+fi
+exit $overall

@@ -95,7 +95,12 @@ assert_match "$("$BIN" -od)" '^[0-9]{4}-[0-9]{3}$' "legacy -od ordinal-date"
 assert_match "$("$BIN" -odb)" '^[0-9]{7}$' "legacy -odb ordinal-date-base"
 assert_match "$("$BIN" -wd)" '^[0-9]{4}-W[0-9]{2}-[1-7]$' "legacy -wd week-date"
 assert_match "$("$BIN" -wdb)" '^[0-9]{4}W[0-9]{2}[1-7]$' "legacy -wdb week-date-basic"
-check "timestamp default via binary symlink" bash -c 'cp "$REPO_DIR/timestamp" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
+# GNU Coding Standards 17: behavior must not depend on the name used to
+# invoke the program; the UTC microversion format is selected with --timestamp.
+check "no argv0 dispatch (renamed binary keeps default)" bash -c 'cp "$REPO_DIR/datetime" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}$ ]]'
+assert_match "$("$BIN" -d 09:00 +%Y-%m-%d)" "$(date +%Y-%m-%d)" "time-only -d anchors on today"
+assert_eq "$("$BIN" -d '' +%s)" "$(date -d '' +%s)" "empty -d == GNU empty (today midnight)"
+assert_eq "$("$BIN" -d '   ' +%s)" "$(date -d '   ' +%s)" "whitespace -d == GNU whitespace"
 assert_match "$("$BIN" --timestamp)" '^[0-9]{14}Z$' "legacy --timestamp"
 
 # Help and version
@@ -263,6 +268,37 @@ check "many specifiers not crash" many_specs_ok
 
 # Check no ESC in help
 check "help has no ESC" bash -c '! grep -q $'\''\x1b'\'' <("$BIN" --help)'
+
+# ---- Coverage additions (todo.md Task 17 / suggestions_agy.md 3.4) ----
+
+# shell_escape: backtick and $( ) injection must not execute.
+# Payloads are assembled with single-quote concatenation so neither this
+# harness nor the inner `bash -c` ever executes them; datetime must
+# treat them as opaque text.
+inj_bt='`touch '"$TMPDIR"'/pwn_bt`'
+inj_cmd='$(touch '"$TMPDIR"'/pwn_cmd)'
+check "injection backtick not executed" env INJ_BT="$inj_bt" bash -c '"$BIN" -d "$INJ_BT" >/dev/null 2>&1; test ! -e "$TMPDIR/pwn_bt"'
+check "injection command-substitution not executed" env INJ_CMD="$inj_cmd" bash -c '"$BIN" -d "$INJ_CMD" >/dev/null 2>&1; test ! -e "$TMPDIR/pwn_cmd"'
+
+# format_time specifiers: %q quarter, %z family, %N nanoseconds
+assert_eq "$("$BIN" -u -d @1577876400 '+%q')" "1" "quarter %q"
+assert_eq "$("$BIN" -u -d @1577876400 '+%z')" "+0000" "%z on -u"
+assert_eq "$("$BIN" -u -d @1577876400 '+%:z')" "+00:00" "%:z on -u"
+assert_eq "$("$BIN" -u -d @1577876400 '+%::z')" "+00:00:00" "%::z on -u"
+assert_eq "$("$BIN" -u -d @1577876400 '+%:::z')" "+00" "%:::z on -u"
+assert_match "$("$BIN" -u -d @1577876400 '+%N')" '^[0-9]{9}$' "%N nine digits"
+
+# -r FILE: sub-second precision path + empty path rejection
+assert_match "$("$BIN" -r "$TMPDIR/ref" '+%N')" '^[0-9]{9}$' "reference sub-second %N"
+check "reference empty path fails" bash -c '! "$BIN" -r "" 2>/dev/null'
+
+# -f: multi-line stdin and unused trailing whitespace after date strings
+assert_eq "$(printf "2020-01-02\\n2021-03-04\\n" | "$BIN" -f - -u '+%Y')" "2020
+2021" "-f stdin multi-line"
+check "trailing whitespace accepted" bash -c 'printf "2020-01-02   \\n" | "$BIN" -f - -u +%Y | grep -qx 2020'
+
+# Unknown long option with equals form
+check "unknown --option=value fails" bash -c '! "$BIN" --no-such-opt=1 2>/dev/null'
 
 # Final count
 echo ""

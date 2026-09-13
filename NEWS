@@ -1,5 +1,45 @@
 GNU datetime NEWS -- history of user-visible changes.
 
+* Version 2.0.20260913 (2026-09-13)
+
+** Changes in behavior
+
+  `datetime -d ''` (empty or whitespace-only date string) now matches GNU
+  date: today at midnight, instead of an error.
+  `datetime -Ins` / `--iso-8601=auto` prints a dot as the ISO 8601 decimal
+  separator where GNU date prints a comma (documented deviation).
+
+** Tests
+
+  New differential suite `tests/_test_matrix` (267 cases) compares every
+  option and an option-combination matrix against the installed GNU date,
+  and caught three bugs on the way in: `-d 20200102` was shadowed by the
+  MMDDhhmm set-time path, ISO dates with an explicit `+02:00` offset
+  ignored the zone, and `-d ''` errored instead of meaning today.
+  New root runner `./_tests [--details]` executes every suite in `tests/`
+  (per-case parameters and results with green OK / red FAILED under
+  --details); `make check` runs it and CI executes the matrix suite.
+
+  The separate `timestamp` binary is gone.  `datetime --timestamp` selects the
+  UTC `YYYYMMDDhhmmssZ` format at run time, per GNU Coding Standards section
+  17 (behavior must not depend on the name used to invoke the program).
+
+** Bug fixes
+
+  `datetime -d 09:00` (bare time-only date) no longer reports year 1899;
+  it is anchored on today's date like GNU date.
+  `datetime -r FILE` no longer loses sub-second precision; nanoseconds from
+  the file's mtime are printed with %N again (the `#if defined(st_mtim)`
+  check was always false because st_mtim is a struct field, not a macro).
+
+** Simplifications
+
+  The generated `version.h` header is gone; the build number is passed with
+  `-DVERSION_BUILD` from the Makefile.  format_time handles %N/%q/%s/%z and
+  the %:z family through a table instead of duplicated special cases, with a
+  single bounds-checked append helper.  main() delegates operand scanning to
+  scan_operand and MMDDhhmm set-time parsing to parse_mmddhhmm.
+
 * Version 2.0 (2026-09-09)
 
 ** Optimizations and performance

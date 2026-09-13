@@ -31,7 +31,7 @@ This manual documents @code{datetime} version @value{VERSION}, a small C99 progr
 @chapter Overview
 
 @code{datetime} displays the current date and time in the given @code{FORMAT}, or sets the system clock with @code{-s} or a @code{MMDDhhmm} argument. Without options it prints local time as @code{YYYYMMDDhhmmss}.
-@code{timestamp} is the same binary: when compiled with @code{-DTIMESTAMP} or invoked via @code{--timestamp} it prints UTC as @code{YYYYMMDDhhmmssZ}.
+With @code{--timestamp} it prints UTC as @code{YYYYMMDDhhmmssZ} (GNU Coding Standards section 17: behavior must not depend on the name used to invoke the program, so there is no separate binary).
 
 The program is written in strict @code{C99} (@code{gcc -std=c99}, only @code{libc}) and follows @file{gnu_c_stileguide.md}.
 
@@ -120,7 +120,7 @@ Flags after @code{%}: @code{-} no pad, @code{_} space, @code{0} zero, @code{+} p
 @node Timestamp
 @chapter Timestamp and Microversion
 
-@code{timestamp} prints UTC @code{YYYYMMDDhhmmssZ} (14 digits + @code{Z}). Full version is @code{MAJOR.MINOR.TIMESTAMP}, e.g. @code{2.0.20260909083730Z}. The @code{TIMESTAMP} is regenerated each @code{make} via @file{version.h} from @code{./timestamp || ~/sbin/timestamp || date -u}. It is sortable, filename-safe, and unambiguous (@code{Z}=UTC).
+@code{datetime --timestamp} prints UTC @code{YYYYMMDDhhmmssZ} (14 digits + @code{Z}). Full version is @code{MAJOR.MINOR.TIMESTAMP}, e.g. @code{2.0.20260909083730Z}. The @code{TIMESTAMP} is evaluated once per @code{make} and passed to the compiler as @code{-DVERSION_BUILD} from @code{./datetime --timestamp || ~/sbin/datetime --timestamp || date -u}. It is sortable, filename-safe, and unambiguous (@code{Z}=UTC).
 
 @example
 $ timestamp
@@ -156,7 +156,7 @@ This codebase follows @file{gnu_c_stileguide.md}:
 @item Function braces in column zero, name in column zero
 @item Dynamic allocation (no arbitrary 4096 limits) via @code{malloc}
 @item @code{getopt_long} for CLI (@pxref{Standards for Command Line Interfaces})
-@item No @code{argv[0]} dispatch (use @code{--timestamp} or @code{-DTIMESTAMP})
+@item No @code{argv[0]} dispatch (use the @code{--timestamp} run-time flag)
 @item Texinfo @file{manual.texi}, @file{ChangeLog}, @file{NEWS}, man page @file{man/man1/datetime.1}
 @end itemize
 

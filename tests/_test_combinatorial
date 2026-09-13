@@ -83,6 +83,9 @@ check "version --version" bash -c '"$BIN" --version >/dev/null'
 check "version -V" bash -c '"$BIN" -V >/dev/null'
 
 # ---- 3. Alias equivalence ----
+# Alias pairs must produce identical output.  "Now"-rendering options
+# (-R, -I*) are anchored with -d @0 so a clock tick between the two runs
+# cannot flake the comparison.
 alias_eq() {
   local a="$1" b="$2" desc="$3"
   TOTAL=$((TOTAL+1))
@@ -95,16 +98,24 @@ alias_eq() {
   fi
   if [[ "$out1" == "$out2" ]]; then echo "PASS: alias $desc"; PASS=$((PASS+1)); else echo "FAIL: alias $desc"; echo "  $a => $out1"; echo "  $b => $out2"; FAIL=$((FAIL+1)); fi
 }
+alias_now() {
+  local a="$1" b="$2" desc="$3"
+  TOTAL=$((TOTAL+1))
+  local out1 out2
+  out1=$($BIN -d @0 $a 2>/dev/null)
+  out2=$($BIN -d @0 $b 2>/dev/null)
+  if [[ "$out1" == "$out2" ]]; then echo "PASS: alias $desc"; PASS=$((PASS+1)); else echo "FAIL: alias $desc"; echo "  $a => $out1"; echo "  $b => $out2"; FAIL=$((FAIL+1)); fi
+}
 alias_eq "-u" "--utc" " -u == --utc"
 alias_eq "-u" "--universal" " -u == --universal"
 alias_eq "--utc" "--universal" " --utc == --universal"
-alias_eq "-R" "--rfc-email" " -R == --rfc-email"
+alias_now "-R" "--rfc-email" " -R == --rfc-email"
 alias_eq "-d @0" "--date=@0" " -d @0 == --date=@0"
 alias_eq "-f $TMPDIR/dates.txt" "--file=$TMPDIR/dates.txt" " -f == --file="
 alias_eq "-r $TMPDIR/ref" "--reference=$TMPDIR/ref" " -r == --reference="
 alias_eq "-s 2020-01-02" "--set=2020-01-02" " -s == --set="
-alias_eq "-I" "--iso-8601" " -I == --iso-8601"
-alias_eq "-Iseconds" "--iso-8601=seconds" " -Iseconds == --iso-8601=seconds"
+alias_now "-I" "--iso-8601" " -I == --iso-8601"
+alias_now "-Iseconds" "--iso-8601=seconds" " -Iseconds == --iso-8601=seconds"
 
 # ---- 4. Date sources singleton ----
 check "date @0 -d" bash -c '"$BIN" -d "@0" >/dev/null'
@@ -237,8 +248,8 @@ check "help contains FORMAT controls" bash -c '"$BIN" --help | grep -q "FORMAT c
 check "help contains legacy" bash -c '"$BIN" --help | grep -q "Legacy output"'
 check "version contains timezone" bash -c '"$BIN" --version | grep -q "Timezone:"'
 
-# ---- 14. Binary symlink timestamp alias ----
-check "timestamp alias via symlink" bash -c 'cp "$REPO_DIR/timestamp" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}Z$ ]]'
+# ---- 14. Timestamp format selection (no argv0 dispatch, GCS 17) ----
+check "no argv0 dispatch (renamed binary keeps default)" bash -c 'cp "$REPO_DIR/datetime" "$TMPDIR/timestamp"; out=$("$TMPDIR/timestamp"); [[ $out =~ ^[0-9]{14}$ ]]'
 check "timestamp alias --timestamp" bash -c '"$BIN" --timestamp | grep -q "Z$"'
 
 # ---- 15. Triple combos with -u --debug + date source + format ----

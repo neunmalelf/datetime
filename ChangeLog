@@ -1,3 +1,47 @@
+2026-09-13  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (scan_operand): Only classify digit-run and MMDDhhmm
+	operands as set-times when no option is awaiting its argument, so
+	-d 20200102 reaches the date parser (matches GNU).
+	* datetime.c (parse_with_strptime): Apply the parsed %z offset to the
+	wall clock for ISO dates with an explicit numeric zone.
+	* datetime.c (parse_date_string): An empty or whitespace-only date
+	string means today at midnight (GNU parity) instead of an error.
+	* tests/_test_matrix: New 267-case differential suite vs installed
+	GNU date covering every option and an option-combination matrix, with
+	--details printing parameters and results (OK green, FAILED red).
+	* _tests: New root runner executing every suite in tests/; wired into
+	make check-test and --details is forwarded to the matrix suite.
+	* tests/_test_combinatorial (alias_now): Anchor now-rendering alias
+	pairs (-R, -I*) on -d @0 to remove a clock-tick race.
+
+	* datetime.c (main): Drop the -DTIMESTAMP dual-binary personality;
+	--timestamp selects the UTC format at run time (GCS 17).
+	* datetime.c (parse_with_strptime): Reject date-less strptime matches
+	(tm_year == 0 && tm_mday == 0) and anchor bare %H:%M[:%S] on today;
+	fixes -d 09:00 printing year 1899.  Drop format subsumed by %z variant.
+	* datetime.c (main): Fix always-false #if defined(st_mtim) so -r keeps
+	nanoseconds (st_mtimespec on Darwin/BSD, st_mtim under POSIX 200809).
+	* datetime.c (format_time): Table-driven %N/%q/%s/%z handling via
+	special_conv + single bounds-checked append_str; drop duplicated
+	per-conversion overflow checks.
+	* datetime.c (scan_operand, output_selection, parse_mmddhhmm, emit_line):
+	New helpers; deduplicate operand scanning and MMDDhhmm set parsing;
+	slim main().
+	* datetime.c: Remove #include "version.h".
+	* Makefile (version.h, FORCE, TARGET2): Remove; pass build stamp with
+	-DVERSION_BUILD via $(shell) fallback chain.  Drop -DTIMESTAMP rule.
+	(check-syntax, dist, install, uninstall, clean): Adjust accordingly.
+	* tests/_test_datetime, tests/_test_combinatorial: Renamed-binary
+	tests now assert no argv0 dispatch; add time-only -d regression.
+	* tests/test_granular.py: Run against datetime only; add regressions
+	for time-only -d and sub-second -r.
+	* project.toml: Drop secondary_output, headers, install_secondary,
+	header; describe -DVERSION_BUILD scheme.
+	* .gitignore: Drop timestamp and version.h entries.
+	* README.md, manual.texi, man/datetime.1, man/man1/datetime.1,
+	tldr/datetime.md: Document single binary and -DVERSION_BUILD.
+
 2026-09-09  Neun MalElf  <neunmalelf@gmail.com>
 
 	* datetime.c (VERSION_MAJOR, VERSION_MINOR): Bump 1.3 -> 2.0.

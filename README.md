@@ -147,9 +147,21 @@ printf "2020-01-02\n2020-01-03\n" | ./datetime -f - +"%F"  # stdin via -
 
 ## Tests
 
-Granular + exhaustive combinatorial tests live in `tests/` (650+ checks, ~406 bash + 40 Python with 244 subtests):
+All suites live in `tests/`; the root runner executes everything and is wired
+into `make check`:
 
-* `tests/_test_datetime` – 122 bash tests (legacy, GNU options, FORMAT flags, edge cases, security). Run from repo root:
+```sh
+./_tests              # one summary line per suite
+./_tests --details    # per-case output: parameters + result, OK green, FAILED red
+```
+
+Current totals: 693 checks (140 bash + 267 matrix + 284 combinatorial + 40 Python with 244 subtests):
+
+* `tests/_test_matrix` – 267-case differential suite: every option and an option-combination matrix, each compared against the installed GNU `date` with compatible arguments (same exit codes, same stdout; ns-resolution and `-I ns`/`--rfc-3339=ns` compared with clock-race tolerance). Options where we deliberately deviate from or extend GNU (compact 14-digit dates, bare `TZ=` prefix, `-I=seconds` spelling, dot instead of comma in ISO ns) are asserted against the documented behavior instead. Also prints one line per case under `--details`.
+  ```sh
+  ./tests/_test_matrix [--details]
+  ```
+* `tests/_test_datetime` – 124 bash tests (legacy, GNU options, FORMAT flags, edge cases, security). Run from repo root:
   ```sh
   ./tests/_test_datetime
   ```
@@ -219,16 +231,24 @@ On Debian/Ubuntu:
 sudo apt install gcc make valgrind bash coreutils python3 python3-pytest
 ```
 
-Build and deploy the binary (auto-installs to `~/sbin`):
+Build the binaries (does **not** install – run `make install` separately):
 
 ```sh
-make          # builds datetime + timestamp and copies to ~/sbin/
+make          # builds datetime + timestamp into the repo root
+make install  # installs to $(prefix)/bin and $(prefix)/share/man/man1
 ```
 
-The `all` target now depends on `install`, so `make` alone always deploys. Previously `all` only built locally and required a separate `make install` – that was why `~/sbin/datetime --help` stayed stale (old 13232-byte binary) while `./datetime` was new (44144-byte). Fixed by `Makefile:15` (`all: $(TARGETS) install`) and a robust `BUILD` fallback (`./timestamp` → `~/sbin/timestamp` → `date -u`).
+`make` builds only; `make install` deploys. Per the GNU Coding Standards, `prefix` defaults to `/usr/local` – binaries land in `/usr/local/bin` and the man page in `/usr/local/share/man/man1`. To install into your home directory instead, override `PREFIX`:
+
+```sh
+PREFIX="$HOME" make install   # ~/bin/datetime + ~/bin/timestamp + ~/.local/share/man/man1/datetime.1
+PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HOME/sbin/share/man
+```
+
+`DESTDIR` is honored for staged/packaged installs (`make install DESTDIR=/tmp/pkg`), and `make uninstall` removes exactly what `install` laid down. The old behavior (`make` auto-installing to `~/sbin`) was removed in Task 16 per GNU Coding Standards §7.2.2 – `all` and `install` are separate targets.
 
 The version is `2.0.<build>`, where `<build>` is a `YYYYMMDDhhmmssZ`
-timestamp generated automatically before every compilation via `version.h:18` (`FORCE` + shell fallback), so it is always fresh even on a clean system without a pre-existing `~/sbin/timestamp`. See it with `./datetime --version` and `~/sbin/datetime --version` (now identical after `make`).
+timestamp passed to the compiler with `-DVERSION_BUILD` (fallback chain `./datetime --timestamp` → `~/sbin/datetime --timestamp` → `date -u`), so it is always fresh even on a clean system. See it with `./datetime --version`.
 
 Run the checks (syntax + memory leaks + test suites):
 
@@ -254,7 +274,7 @@ brew install llvm                               # for clang-format --style=GNU
 
 **Build – same command, `C99` + `BSD` portable `install`:**
 ```sh
-make                                            # builds datetime + timestamp (45056 bytes, -DTIMESTAMP for timestamp)
+make                                            # builds datetime (UTC micro-version via --timestamp)
 # Makefile:1 SHELL=/bin/sh, Makefile:22 INSTALL = install, INSTALL_PROGRAM = $(INSTALL) -m 0755
 # BSD install has no -D – Makefile:74 uses portable mkdir -p $(DESTDIR)$(bindir) before install
 ./datetime --version                             # datetime 2.0.2026090909XXXXZ (UTC)
@@ -266,7 +286,7 @@ make                                            # builds datetime + timestamp (4
 |---------|------------|-------------------------------------------|-----------|----------|
 | `Intel` `macOS` | `Darwin` | `prefix=/usr/local` → `bindir=/usr/local/bin` | `/usr/local/bin/datetime` | `make prefix=/usr/local` |
 | `Apple Silicon` | `Darwin` + `test -d /opt/homebrew` | `prefix=/opt/homebrew` → `bindir=/opt/homebrew/bin` | `/opt/homebrew/bin/datetime` | `make prefix=/opt/homebrew` |
-| `Linux` / `user-local` | `Linux` | `PREFIX ?= $(HOME)/sbin` → `bindir=$(HOME)/sbin` if `~/sbin` exists | `~/sbin/datetime` | `make bindir=$$HOME/bin` |
+| `Linux` / other Unix | `Linux` | `prefix=/usr/local` → `bindir=/usr/local/bin` | `/usr/local/bin/datetime` | `make PREFIX="$HOME" install` → `~/bin/datetime` |
 | `External drive` (common on small `SSD` `Mac`s – `Applications` moved to `/Volumes/External`) | `Darwin` + `df /Applications` → `/Volumes/External` | **Not auto-detected for CLI** – `bindir` stays as above | `/Volumes/External/opt/homebrew/bin` or `/Volumes/External/sbin` | `make prefix=/Volumes/External/opt/homebrew` or `make bindir=/Volumes/External/sbin` or `make bindir=/Volumes/External/Applications/bin` |
 
 **How to find the correct `macOS` deploy path when `Applications` is on external:**
@@ -284,25 +304,34 @@ which datetime # -> /opt/homebrew/bin/datetime or /Users/you/sbin/datetime
 # 3. Override at install time (already supported, no code change needed)
 make bindir=/Volumes/External/bin install
 make prefix=/Volumes/External/opt/homebrew install
-make PREFIX=$$HOME/sbin install          # keep Linux-like ~/sbin even on macOS
+make PREFIX="$HOME/sbin" install         # keep classic ~/sbin even on macOS
 ```
 
-**External drive is covered:** `Makefile:74` `install` uses `$(DESTDIR)$(bindir)` – `bindir` is fully overridable, and `~/sbin` (`$(HOME)/sbin`) already follows `$HOME` even if `$HOME` is on external (`/Volumes/External/Users/you` → `bindir=/Volumes/External/Users/you/sbin`). For `Homebrew` on external, just `make prefix=$(brew --prefix)` where `brew --prefix` already returns the external path. No hard-coded `/Applications` is used for CLI tools – the table above shows how to detect it via `osascript`/`df`/`brew --prefix`.
+**External drive is covered:** `install` uses `$(DESTDIR)$(bindir)` – `prefix`/`bindir`/`mandir` are fully overridable (`make prefix=... install` or `make PREFIX=... install`), and on Homebrew the auto-detected `/opt/homebrew` prefix already follows `brew --prefix` even when Homebrew lives on an external volume. No hard-coded `/Applications` is used for CLI tools – the table above shows how to detect it via `osascript`/`df`/`brew --prefix`.
 
 **`macOS` quirks handled in code:**
 * `datetime.c:22` `#if defined(__linux__) || defined(__APPLE__)` for `<sys/time.h>` (`timespec` in `<time.h>` on `Darwin`, `clock_gettime` ≥10.12, `timegm` ≥10.6, `tm_gmtoff`/`tm_zone` available as `BSD` extension).
 * `datetime.c:20` `#ifdef _WIN32` vs `#else` `#include <getopt.h>` – `macOS` `BSD` `getopt_long` supports `I::` optional arg differently, handled via filtered `argv` before `getopt_long` `datetime.c:860`.
 * `valgrind` → use `leaks`/`ASan` on `macOS`: `make check-mem` will warn `valgrind not found`, run `clang -fsanitize=address -o /tmp/datetime_asan datetime.c && /tmp/datetime_asan -d "@0"`.
 
+**`Windows` (`MinGW-w64`/`MSYS2`) install paths:** `make install` places `datetime.exe` in `$(HOME)/sbin` and the man page in `$(HOME)/.local/share/man/man1`.
+
 ## Install (explicit)
 
-Copies the single-file binary to `~/sbin`, overwriting any existing version (also run automatically by `make`):
+Installs `datetime` and `timestamp` plus the man page to the GNU-standard directories under `prefix` (default `/usr/local`):
 
 ```sh
-make install
+make install                # $(prefix)/bin/{datetime,timestamp} + $(prefix)/share/man/man1/datetime.1
+make install DESTDIR=/tmp/pkg  # staged install for packaging
 ```
 
-Remove it with:
+User-local example:
+
+```sh
+PREFIX="$HOME" make install   # ~/bin/datetime, ~/bin/timestamp, ~/.local/share/man/man1/datetime.1
+```
+
+Remove it with (removes exactly what `install` created, including any legacy `~/sbin` copies):
 
 ```sh
 make uninstall
@@ -348,7 +377,6 @@ Extensive examples covering every option and `FORMAT` – all are tested in `tes
 ./datetime -wdb             # 2026W373
 ./datetime --week-date-basic
 ./datetime --timestamp      # 20260909103730Z (UTC, micro-version format)
-./timestamp                 # same via dedicated binary (built with -DTIMESTAMP)
 ```
 
 ### GNU date compatible – date source
@@ -449,30 +477,27 @@ sudo ./datetime --set="2020-01-02" --debug    # with debug
 
 ### What it is
 
-* **Dedicated binary and flag:** The project builds `datetime` (local time `YYYYMMDDhhmmss`) and `timestamp` (UTC `YYYYMMDDhhmmssZ`, compiled with `-DTIMESTAMP`). Flag `--timestamp` produces the same UTC format when calling `datetime --timestamp`.
+* **Single binary, run-time flag:** The project builds one binary, `datetime` (local time `YYYYMMDDhhmmss`). The UTC `YYYYMMDDhhmmssZ` micro-version format is selected at run time with `--timestamp` — per GNU Coding Standards §17, behavior must not depend on the name used to invoke the program.
 * **Standard Python equivalent:** `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"`.
 
 ### How to use it
 
 | Goal | Command | Output |
 |------|---------|--------|
-| **UTC micro-timestamp** | `./timestamp` | `20260909083730Z` |
-| After `make` install | `~/sbin/timestamp` / `timestamp` | `20260909083730Z` |
-| Via `datetime` flag | `./datetime --timestamp` | `20260909083730Z` (same but via `datetime`) |
+| **UTC micro-timestamp** | `./datetime --timestamp` | `20260909083730Z` |
+| After `make` install | `$(prefix)/bin/datetime --timestamp` (e.g. `~/bin/datetime` with `PREFIX="$HOME"`) | `20260909083730Z` |
 | Inside `datetime` format | `./datetime -u +"%Y%m%d%H%M%SZ"` | `20260909083730Z` |
 | Python utility | `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"` | `20260909083730Z` |
-| Generate `version.h` | `make` → `version.h:1` `#define VERSION_BUILD "20260909083730Z"` | used by `datetime --version` |
+| Build stamp | `make` → `-DVERSION_BUILD="20260909083730Z"` | used by `datetime --version` |
 
 ```sh
 # 1. Direct binary (UTC, sortable)
 ./datetime --timestamp      # 20260909083730Z (UTC)
-./timestamp                # 20260909083730Z (UTC)
-~/sbin/timestamp           # same after make install
+PREFIX="$HOME"; $PREFIX/bin/datetime --timestamp     # same after PREFIX="$HOME" make install
 
 # 2. As micro-version in your own script/SKILL
-TS=$(~/sbin/timestamp 2>/dev/null || ./timestamp)   # TS=20260909083730Z
+TS=$(~/sbin/datetime --timestamp 2>/dev/null || ./datetime --timestamp)   # TS=20260909083730Z
 VERSION="2.0.$TS"                                  # 2.0.20260909083730Z
-echo "#define VERSION_BUILD \"$TS\"" > version.h
 
 # 3. Python helper (standard library)
 python3 - <<'PY'
@@ -490,16 +515,16 @@ echo $TS | sed -E 's/([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2}
 
 We **chose this form on purpose** so both humans and LLMs can read it without guessing:
 
-* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, `version.h`, SKILL metadata, `project.toml:70` `scheme = "2.0.<build>"`. Compare `20260909083730Z` < `20260910120000Z` – no parsing needed.
+* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, `-DVERSION_BUILD`, SKILL metadata, `project.toml` `scheme = "2.0.<build>"`. Compare `20260909083730Z` < `20260910120000Z` – no parsing needed.
 * **Unambiguous timezone:** Trailing `Z` = *Zulu* = UTC (`format = "%Y%m%d%H%M%SZ"` + `gmtime`). No local `CEST`/`PST` confusion. LLM can instantly split: `YYYY` `MM` `DD` `hh` `mm` `ss` `Z`.
 * **Compact but still human-readable:** 14 digits → split `YYYYMMDD` + `hhmmss`. Human scans `20260909` as `2026-09-09`, LLM tokenizes `2026 09 09 08 37 30 Z` without extra punctuation.
 * **Micro-version semantics:** `x.y.<UTC>` → `2.0.20260909083730Z`:
   * `x.y` = API break / feature (`project.toml:4` `version = "2.0"` + `datetime.c:35-36` `VERSION_MAJOR/MINOR`)
-  * `<UTC>` = **release date-time** of this exact build. Every `make` regenerates `version.h:1` via `Makefile` with fallback chain `./timestamp || ~/sbin/timestamp || date -u +"%Y%m%d%H%M%SZ"` – so even on a clean machine without `~/sbin/timestamp` the build still gets a fresh UTC stamp. No need to bump `x.y` for every commit; `x.y` stays stable, `Z` moves.
+  * `<UTC>` = **release date-time** of this exact build. Every `make` evaluates `$(BUILD)` once via `Makefile` `$(shell)` with fallback chain `./datetime --timestamp || ~/sbin/datetime --timestamp || date -u +"%Y%m%d%H%M%SZ"` and passes it as `-DVERSION_BUILD` – so even on a clean machine the build still gets a fresh UTC stamp. No need to bump `x.y` for every commit; `x.y` stays stable, `Z` moves.
 * **Used everywhere in this repo:**
-  * `Makefile` `version.h` → `datetime --version` → `2.0.20260909083730Z`
+  * `Makefile` `-DVERSION_BUILD` → `datetime --version` → `2.0.20260909083730Z`
   * `project.toml:70` `scheme = "2.0.<build>"` – docs for humans/LLMs how to interpret `2.0.*`
-  * SKILL `writing-skills` / `tests-subfolder` prompts use `~/sbin/timestamp` to generate SKILL `__VERSION__` like `1.0.20260909104000Z`
+  * SKILL `writing-skills` / `tests-subfolder` prompts use `~/sbin/datetime --timestamp` to generate SKILL `__VERSION__` like `1.0.20260909104000Z`
 
 **For LLM:** Treat `Z` as `UTC`, split `^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$` → `YYYY-MM-DDThh:mm:ssZ` ISO. For human: read `20260909083730Z` as `2026-09-09 08:37:30 UTC` – the exact second this binary was built.
 

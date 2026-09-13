@@ -9,18 +9,17 @@ description = "Print the current local datetime in the host machine's timezone. 
 [source]
 main = "datetime.c"
 build_output = "datetime"
-secondary_output = "timestamp"   # built with -DTIMESTAMP (UTC microversion YYYYMMDDhhmmssZ)
-headers = ["version.h"]
 docs = ["date_english.hlp", "date_german.hlp", "README.md"]
 tests_bash = ["tests/_test_datetime", "tests/_test_combinatorial"]
 tests_python = ["tests/test_granular.py", "tests/test_exhaustive.py"]
-archived_tasks = ["history/todo_completed_*.md"]  # todo.md fully implemented and archived 20260909083118Z
+archived_tasks = ["history/todo_completed_*.md"]  # todo.md fully implemented and archived 20260909083118Z; re-archived after Tasks 16-17 (2026-09-12)
 
-# Install destination
+# Install destination (GNU-standard layout, Task 16)
 [destination]
-install_dir = "~/sbin"
-install_binary = "datetime"
-install_secondary = "timestamp"
+install_dir = "$(prefix)/bin"   # prefix defaults to /usr/local; override with PREFIX=..., e.g. PREFIX="$HOME" -> ~/bin
+install_binary = "datetime"     # UTC microversion via `datetime --timestamp` (no separate binary, GCS 17)
+man_dir = "$(prefix)/share/man/man1"  # man page datetime.1; staged installs: DESTDIR=...
+windows_install_dir = "$(HOME)/sbin"  # Windows: datetime.exe
 
 # Build requirements
 [build]
@@ -69,5 +68,5 @@ readme = "README.md"            # exhaustive combinatorial docs
 [version]
 major = 2
 minor = 0
-scheme = "2.0.<build>"          # <build> = YYYYMMDDHHMMSSZ from ./timestamp || ~/sbin/timestamp || date -u, regenerated via version.h:18 FORCE
-header = "version.h"
+scheme = "2.0.<build>"          # <build> = YYYYMMDDHHMMSSZ from ./datetime --timestamp || ~/sbin/datetime --timestamp || date -u, passed via -DVERSION_BUILD
+build_macro = "VERSION_BUILD"   # Makefile: -DVERSION_BUILD="<build>"; no generated header

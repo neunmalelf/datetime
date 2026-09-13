@@ -6,8 +6,6 @@ import subprocess, os, re, sys, tempfile, pathlib, time, stat, unittest
 
 REPO = pathlib.Path(__file__).parent.parent
 BIN = REPO / "datetime"
-if not BIN.exists():
-    BIN = REPO / "timestamp"
 
 def run(*args, input_text=None, env=None):
     # Use LC_ALL=C for deterministic? But we test local; for UTC tests we pass -u
@@ -192,6 +190,24 @@ class TestDatetimeOptions(unittest.TestCase):
     def test_percent_escapes(self):
         rc, out, _ = run("+%%")
         self.assertEqual(out.strip(), "%")
+    def test_time_only_date_anchors_on_today(self):
+        # Regression: a bare "09:00" used to come out in year 1899.
+        today = time.strftime("%Y-%m-%d")
+        rc, out, _ = run("-d", "09:00", "+%Y-%m-%d %H:%M")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), f"{today} 09:00")
+        rc, out, _ = run("-d", "09:00:30", "+%H:%M:%S")
+        self.assertEqual(out.strip(), "09:00:30")
+    def test_reference_keeps_nanoseconds(self):
+        # Regression: -r used to zero the sub-second mtime field.
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = pathlib.Path(tmp) / "probe"
+            probe.write_text("x")
+            os.utime(probe, ns=(1_700_000_000_123_456_789,
+                                 1_700_000_000_123_456_789))
+            rc, out, _ = run("-r", str(probe), "+%N")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), "123456789")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
