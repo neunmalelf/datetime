@@ -132,6 +132,7 @@ install: $(TARGETS)
 	$(INSTALL_PROGRAM) $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
 	$(INSTALL_PROGRAM) $(TIMESTAMP) "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
+	$(INSTALL_DATA) $(srcdir)/man/man1/timestamp.1 "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/datetime" 2>/dev/null || true
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
 ifeq ($(OS),Windows_NT)
@@ -146,12 +147,14 @@ install-strip: $(TARGETS)
 	$(INSTALL_PROGRAM) -s $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
 	$(INSTALL_PROGRAM) -s $(TIMESTAMP) "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
+	$(INSTALL_DATA) $(srcdir)/man/man1/timestamp.1 "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/datetime" 2>/dev/null || true
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
 
 uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(TARGET)"
 	rm -f "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
+	rm -f "$(DESTDIR)$(man1dir)/datetime$(manext)" "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	rm -f "$(DESTDIR)$(completionsdir)/datetime" "$(DESTDIR)$(completionsdir)/timestamp"
 	# Remove legacy ~/sbin install if different from bindir
 	@case "$(bindir)" in "$(HOME)/sbin") true;; *) rm -f "$(PREFIX)/$(TARGET)" 2>/dev/null || true;; esac
@@ -181,11 +184,11 @@ TAGS: $(SRC) $(srcdir)/manual.texi
 
 tags: TAGS
 
-dist: docs $(SRC) $(srcdir)/scripts/check-security.sh $(srcdir)/scripts/gen-docs.py $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1
+dist: docs $(SRC) $(srcdir)/scripts/check-security.sh $(srcdir)/scripts/gen-docs.py $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $(srcdir)/tldr/timestamp.md
 	@dir=datetime-$(VERSION); \
 	rm -rf $$dir; mkdir -p $$dir; \
 	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $$dir/ 2>/dev/null || true; \
-	mkdir -p $$dir/man/man1 $$dir/tldr $$dir/shell $$dir/scripts; cp -p $(srcdir)/man/man1/datetime.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $$dir/tldr/ 2>/dev/null || true; cp -p $(srcdir)/shell/datetime.bash $$dir/shell/ 2>/dev/null || true; cp -p $(srcdir)/scripts/gen-docs.py $$dir/scripts/ 2>/dev/null || true; \
+	mkdir -p $$dir/man/man1 $$dir/tldr $$dir/shell $$dir/scripts; cp -p $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $(srcdir)/tldr/timestamp.md $$dir/tldr/ 2>/dev/null || true; cp -p $(srcdir)/shell/datetime.bash $$dir/shell/ 2>/dev/null || true; cp -p $(srcdir)/scripts/gen-docs.py $$dir/scripts/ 2>/dev/null || true; \
 	tar -czf $$dir.tar.gz $$dir; rm -rf $$dir; echo "Created $$dir.tar.gz"
 
 # Syntax check only (no code generation).

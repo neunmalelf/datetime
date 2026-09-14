@@ -28,7 +28,9 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "datetime"
 README = ROOT / "README.md"
 TLDR = ROOT / "tldr" / "datetime.md"
+TLDR_TS = ROOT / "tldr" / "timestamp.md"
 MAN = ROOT / "man" / "man1" / "datetime.1"
+MAN_TS = ROOT / "man" / "man1" / "timestamp.1"
 
 BEGIN = "<!-- BEGIN GENERATED: format-table -->"
 END = "<!-- END GENERATED: format-table -->"
@@ -206,9 +208,18 @@ def gen_tldr(help_out) -> str:
 
 
 def man_parity(help_out):
-    """Long options missing from the man page."""
+    """Long options missing from the man pages (both datetime and timestamp)."""
     man = MAN.read_text() if MAN.exists() else ""
-    return [o for o in parse_long_options(help_out) if f"--{o}" not in man]
+    missing = [o for o in parse_long_options(help_out) if f"--{o}" not in man]
+    # timestamp man must exist (typically .so include of datetime)
+    if not MAN_TS.exists():
+        missing.append("timestamp man page missing (man/man1/timestamp.1)")
+    else:
+        ts_text = MAN_TS.read_text()
+        # .so include is okay – verify it points at datetime
+        if "datetime" not in ts_text and ".so" not in ts_text:
+            missing.append("timestamp man page does not reference datetime")
+    return missing
 
 
 def main():
@@ -232,6 +243,12 @@ def main():
         problems.append("README.md format table is stale")
     if TLDR.read_text() != new_tldr:
         problems.append("tldr/datetime.md is stale")
+    if not TLDR_TS.exists():
+        problems.append("tldr/timestamp.md is missing")
+    else:
+        ts_tldr = TLDR_TS.read_text()
+        if "# timestamp" not in ts_tldr or "timestamp --help" not in ts_tldr:
+            problems.append("tldr/timestamp.md is stale or incomplete")
     if missing_man:
         problems.append(f"man page missing options: {missing_man}")
 
@@ -246,6 +263,10 @@ def main():
     print("gen-docs: regenerated README format table + tldr/datetime.md")
     if problems:
         print("gen-docs: WARNING " + "; ".join(problems))
+    else:
+        # also report timestamp artifacts are present
+        if TLDR_TS.exists() and MAN_TS.exists():
+            print("gen-docs: timestamp artifacts (man/timestamp.1, tldr/timestamp.md) present")
 
 
 if __name__ == "__main__":

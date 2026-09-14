@@ -31,7 +31,7 @@ This manual documents @code{datetime} version @value{VERSION}, a small C99 progr
 @chapter Overview
 
 @code{datetime} displays the current date and time in the given @code{FORMAT}, or sets the system clock with @code{-s} or a @code{MMDDhhmm} argument. Without options it prints local time as @code{YYYYMMDDhhmmss}.
-With @code{--timestamp} it prints UTC as @code{YYYYMMDDhhmmssZ} (GNU Coding Standards section 17: behavior must not depend on the name used to invoke the program, so there is no separate binary).
+With @code{--timestamp} it prints UTC as @code{YYYYMMDDhhmmssZ}. The @code{timestamp} command is the same program compiled with @code{-DDATETIME_TIMESTAMP_BUILD}: its default output is that UTC stamp, and every option behaves exactly as in @code{datetime}. Run-time behavior never depends on the name used to invoke the program (GNU Coding Standards section 17): @code{datetime --timestamp} selects the same format in every build.
 
 The program is written in strict @code{C99} (@code{gcc -std=c99}, only @code{libc}) and follows @file{gnu_c_stileguide.md}.
 

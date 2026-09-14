@@ -362,6 +362,10 @@ Extensive examples covering every option and `FORMAT` – all are tested in `tes
 ./datetime --version                # datetime 2.0.20260909083730Z + Timezone: CEST (UTC+2)
 ./datetime -V                       # same as --version
 ./datetime --debug -d "2020-01-02" +"%F"  # debug to stderr: parsing + format decisions
+./timestamp                         # default: 20260909103730Z (UTC YYYYMMDDhhmmssZ)
+./timestamp --help                  # same options as datetime, default is UTC stamp
+./timestamp -h                      # same as --help
+./timestamp --version               # timestamp 2.0.20260909083730Z
 ```
 
 ### Legacy output formats (kept, `datetime.c:52` formats[])
@@ -538,4 +542,12 @@ We **chose this form on purpose** so both humans and LLMs can read it without gu
 
 ## Help files
 
-The help text is embedded in the binary (`./datetime --help`); there are no separate help files.
+Help is embedded in both binaries and also shipped as manual pages and tldr cheatsheets:
+
+* **Binary help:** `./datetime --help` / `./datetime -h` and `./timestamp --help` / `./timestamp -h` (identical options; `timestamp` defaults to UTC `YYYYMMDDhhmmssZ`).
+* **Man pages:** `man/man1/datetime.1` and `man/man1/timestamp.1` (installed to `$(mandir)/man1/` by `make install`; `timestamp.1` is a `.so` include of `datetime.1`). View with `man datetime` or `man timestamp`.
+* **tldr pages:** `tldr/datetime.md` and `tldr/timestamp.md`.
+* **Shell completion:** `shell/datetime.bash` – bash completion for both `datetime` and `timestamp` (installed to bash-completion's `completionsdir` as `datetime` and `timestamp`; without bash-completion, source it from `~/.bashrc` – see header of `shell/datetime.bash`).
+* **Texinfo manual:** `manual.texi` → `datetime.info` (`make info`).
+
+All help sources are generated from the same binary (`--help` is the single source of truth) and verified by `make check-docs`.

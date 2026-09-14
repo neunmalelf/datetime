@@ -25,7 +25,7 @@
 
 // Single source of truth for the version (x.y.micro, micro = release date).
 // Kept here on purpose: no -DVERSION_BUILD plumbing, no generated header.
-static const char *__version__ = "2.0.202609131714";
+static const char *__version__ = "2.0.202609141614";
 
 static int g_debug = 0;
 static int g_utc = 0;
@@ -114,8 +114,13 @@ print_usage (const char *prog)
   printf ("Usage: %s [OPTION]... [+FORMAT]\n"
 	  "  or:  %s [OPTION]... [MMDDhhmm[[CC]YY][.ss]]\n"
 	  "Display date and time in the given FORMAT.\n"
-	  "With -s, or with MMDDhhmm[[CC]YY][.ss], set the date and time first.\n\n",
+	  "With -s, or with MMDDhhmm[[CC]YY][.ss], set the date and time first.\n",
 	  prog, prog);
+#ifdef DATETIME_TIMESTAMP_BUILD
+  printf ("Without FORMAT, timestamp prints UTC as YYYYMMDDhhmmssZ.\n");
+  printf ("All datetime options (-d, -f, -I, -R, +FORMAT, etc.) work identically.\n");
+#endif
+  printf ("\n");
 
   fputs
     ("Mandatory arguments to long options are mandatory for short options too.\n"
