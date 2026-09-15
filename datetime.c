@@ -760,17 +760,31 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
 {
   if (!orig)
     return 0;
-  // Make mutable copy for trim (dynamic, no arbitrary limit)
-  char *buf = strdup (orig);
-  if (!buf)
-    return 0;
+  // 2.1: Use stack buffer for typical date strings (<256), heap only for large
+  char stack_buf[256];
+  char *buf;
+  int is_heap = 0;
+  size_t orig_len = strlen (orig);
+  if (orig_len < sizeof (stack_buf))
+    {
+      memcpy (stack_buf, orig, orig_len + 1);
+      buf = stack_buf;
+    }
+  else
+    {
+      buf = strdup (orig);
+      if (!buf)
+	return 0;
+      is_heap = 1;
+    }
   trim (buf);
   if (!buf[0])
     {
       // GNU date treats an empty (or whitespace-only) date string as
       // "today" at midnight (its "today" keeps the current time, ours
       // means midnight; empty maps to midnight for exact parity).
-      free (buf);
+      if (is_heap)
+	free (buf);
       parse_day_offset (0, out, utc);
       return 1;
     }
@@ -817,7 +831,8 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
 	  debug_log ("parsed with TZ='%s' -> %ld.%09ld", tzbuf,
 		     (long) out->tv_sec, (long) out->tv_nsec);
 	}
-      free (buf);
+      if (is_heap)
+	free (buf);
       return res;
     }
 
@@ -825,26 +840,30 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
   if (!strcmp (buf, "now"))
     {
       get_current_timespec (out);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
 
   if (!strcmp (buf, "today"))
     {
       parse_day_offset (0, out, utc);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
   if (!strcmp (buf, "yesterday"))
     {
       parse_day_offset (-1, out, utc);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
   if (!strcmp (buf, "tomorrow"))
     {
       parse_day_offset (1, out, utc);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
 
@@ -852,28 +871,32 @@ parse_date_string (const char *orig, struct timespec *out, int utc, int debug)
     {
       debug_log ("parsed as epoch -> %ld.%09ld", (long) out->tv_sec,
 		 (long) out->tv_nsec);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
   if (parse_with_strptime (buf, out, utc))
     {
       debug_log ("parsed via strptime -> %ld.%09ld", (long) out->tv_sec,
 		 (long) out->tv_nsec);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
   if (parse_via_gnudate (buf, out, utc))
     {
       debug_log ("parsed via gnudate fallback -> %ld.%09ld",
 		 (long) out->tv_sec, (long) out->tv_nsec);
-      free (buf);
+      if (is_heap)
+	free (buf);
       return 1;
     }
   if (debug)
     {
       fprintf (stderr, "debug: failed to parse date string '%s'\n", buf);
     }
-  free (buf);
+  if (is_heap)
+    free (buf);
   return 0;
 }
 
