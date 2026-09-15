@@ -132,14 +132,21 @@ SRC="datetime.c"
 mkdir -p dist/release
 
 # Helper: try compile, on failure create placeholder
-# usage: try_build CC "CFLAGS" SRC -o OUT -DDATETIME_TIMESTAMP_BUILD?
+# usage: try_build CC OUT [extra args] — CC may be "zig cc --target=..."
+# Uses eval to handle CC with spaces (e.g. "zig cc --target=...")
 try_build() {
   local cc="$1"; shift
   local out="$1"; shift
   # remaining args are passed to compiler
   local log
   log=$(mktemp)
-  if ! $cc $CFLAGS_RELEASE "$@" -o "$out" "$SRC" 2>"$log"; then
+  local extra=""
+  if [[ $# -gt 0 ]]; then
+    extra=$(printf ' %q' "$@")
+  fi
+  # Build command: eval to handle CC with spaces
+  # shellcheck disable=SC2086
+  if ! eval "$cc $CFLAGS_RELEASE$extra -o \"$out\" \"$SRC\"" 2>"$log"; then
     warn "build failed: $cc $* -> $out"
     head -n 20 "$log" | sed 's/^/         /'
     # create placeholder with note
@@ -170,9 +177,17 @@ else
   echo "gcc missing" > dist/release/linux-amd64/datetime.placeholder
 fi
 
-# Linux ARM64
+# Linux ARM64 — prefer zig (bundles musl/glibc, no sysroot needed) over native cross gcc (often missing headers)
 mkdir -p dist/release/linux-arm64
-if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
+if command -v zig >/dev/null 2>&1; then
+  try_build "zig cc --target=aarch64-linux-gnu" dist/release/linux-arm64/datetime || true
+  try_build "zig cc --target=aarch64-linux-gnu" dist/release/linux-arm64/timestamp -DDATETIME_TIMESTAMP_BUILD || true
+  # fallback to native if zig failed
+  if [[ ! -f dist/release/linux-arm64/datetime ]] && command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
+    try_build aarch64-linux-gnu-gcc dist/release/linux-arm64/datetime || true
+    try_build aarch64-linux-gnu-gcc dist/release/linux-arm64/timestamp -DDATETIME_TIMESTAMP_BUILD || true
+  fi
+elif command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
   try_build aarch64-linux-gnu-gcc dist/release/linux-arm64/datetime || true
   try_build aarch64-linux-gnu-gcc dist/release/linux-arm64/timestamp -DDATETIME_TIMESTAMP_BUILD || true
 elif command -v clang >/dev/null 2>&1; then
@@ -181,13 +196,19 @@ elif command -v clang >/dev/null 2>&1; then
     ok "linux-arm64/datetime (clang aarch64-linux-gnu)"
     clang --target=aarch64-linux-gnu -DDATETIME_TIMESTAMP_BUILD -O2 -Wall -Wextra -std=c99 "$SRC" -o dist/release/linux-arm64/timestamp 2>/dev/null && ok "linux-arm64/timestamp" || warn "clang aarch64 timestamp failed"
   else
-    warn "linux-arm64 toolchain not available (aarch64-linux-gnu-gcc or clang aarch64) — placeholder"
-    echo "Placeholder: install aarch64-linux-gnu-gcc for linux-arm64 at $VERSION" > dist/release/linux-arm64/datetime.placeholder
+    warn "linux-arm64 toolchain not available (zig or aarch64-linux-gnu-gcc/clang aarch64) — placeholder"
+    echo "Placeholder: install zig or aarch64-linux-gnu-gcc for linux-arm64 at $VERSION" > dist/release/linux-arm64/datetime.placeholder
     echo "Placeholder" > dist/release/linux-arm64/timestamp.placeholder
   fi
 else
   warn "linux-arm64 toolchain not available — placeholder"
-  echo "Placeholder: install aarch64-linux-gnu-gcc for linux-arm64 at $VERSION" > dist/release/linux-arm64/datetime.placeholder
+  echo "Placeholder: install zig or aarch64-linux-gnu-gcc for linux-arm64 at $VERSION" > dist/release/linux-arm64/datetime.placeholder
+fi
+# Ensure at least one succeeded, else placeholder
+if [[ ! -f dist/release/linux-arm64/datetime && ! -f dist/release/linux-arm64/datetime.placeholder ]]; then
+  warn "linux-arm64 build failed — placeholder"
+  echo "Placeholder: zig aarch64-linux-gnu failed at $VERSION" > dist/release/linux-arm64/datetime.placeholder
+  echo "Placeholder" > dist/release/linux-arm64/timestamp.placeholder
 fi
 
 # Windows AMD64
@@ -195,9 +216,12 @@ mkdir -p dist/release/windows-amd64
 if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
   try_build x86_64-w64-mingw32-gcc dist/release/windows-amd64/datetime.exe || true
   try_build x86_64-w64-mingw32-gcc dist/release/windows-amd64/timestamp.exe -DDATETIME_TIMESTAMP_BUILD || true
+elif command -v zig >/dev/null 2>&1; then
+  try_build "zig cc --target=x86_64-windows-gnu" dist/release/windows-amd64/datetime.exe || true
+  try_build "zig cc --target=x86_64-windows-gnu" dist/release/windows-amd64/timestamp.exe -DDATETIME_TIMESTAMP_BUILD || true
 else
-  warn "windows-amd64 toolchain x86_64-w64-mingw32-gcc not available — placeholder"
-  echo "Placeholder: install mingw-w64 for windows-amd64 at $VERSION" > dist/release/windows-amd64/datetime.exe.placeholder
+  warn "windows-amd64 toolchain x86_64-w64-mingw32-gcc or zig not available — placeholder"
+  echo "Placeholder: install mingw-w64 or zig for windows-amd64 at $VERSION" > dist/release/windows-amd64/datetime.exe.placeholder
   echo "Placeholder" > dist/release/windows-amd64/timestamp.exe.placeholder
 fi
 
@@ -206,31 +230,52 @@ mkdir -p dist/release/windows-arm64
 if command -v aarch64-w64-mingw32-gcc >/dev/null 2>&1; then
   try_build aarch64-w64-mingw32-gcc dist/release/windows-arm64/datetime.exe || true
   try_build aarch64-w64-mingw32-gcc dist/release/windows-arm64/timestamp.exe -DDATETIME_TIMESTAMP_BUILD || true
+elif command -v zig >/dev/null 2>&1; then
+  try_build "zig cc --target=aarch64-windows-gnu" dist/release/windows-arm64/datetime.exe || true
+  try_build "zig cc --target=aarch64-windows-gnu" dist/release/windows-arm64/timestamp.exe -DDATETIME_TIMESTAMP_BUILD || true
 else
-  warn "windows-arm64 toolchain aarch64-w64-mingw32-gcc not available — placeholder"
-  echo "Placeholder: install mingw-w64 for windows-arm64 at $VERSION" > dist/release/windows-arm64/datetime.exe.placeholder
+  warn "windows-arm64 toolchain aarch64-w64-mingw32-gcc or zig not available — placeholder"
+  echo "Placeholder: install mingw-w64 or zig for windows-arm64 at $VERSION" > dist/release/windows-arm64/datetime.exe.placeholder
   echo "Placeholder" > dist/release/windows-arm64/timestamp.exe.placeholder
 fi
 
 # macOS Intel (x86_64)
 mkdir -p dist/release/macos-intel
-if command -v clang >/dev/null 2>&1; then
+if command -v zig >/dev/null 2>&1; then
+  if zig cc --target=x86_64-macos -O2 -Wall -Wextra -std=c99 -o dist/release/macos-intel/datetime "$SRC" 2>/dev/null; then
+    ok "macos-intel/datetime (zig x86_64-macos)"
+    zig cc --target=x86_64-macos -DDATETIME_TIMESTAMP_BUILD -O2 -Wall -Wextra -std=c99 -o dist/release/macos-intel/timestamp "$SRC" 2>/dev/null && ok "macos-intel/timestamp" || warn "macos-intel timestamp zig failed"
+  else
+    warn "macos-intel zig cross failed — placeholder"
+    echo "Placeholder: zig x86_64-macos needs SDK at $VERSION" > dist/release/macos-intel/datetime.placeholder
+    echo "Placeholder" > dist/release/macos-intel/timestamp.placeholder
+  fi
+elif command -v clang >/dev/null 2>&1; then
   if clang --target=x86_64-apple-macos11 -O2 -Wall -Wextra -std=c99 "$SRC" -o dist/release/macos-intel/datetime 2>/dev/null; then
     ok "macos-intel/datetime (clang x86_64-apple-macos11)"
     clang --target=x86_64-apple-macos11 -DDATETIME_TIMESTAMP_BUILD -O2 -Wall -Wextra -std=c99 "$SRC" -o dist/release/macos-intel/timestamp 2>/dev/null && ok "macos-intel/timestamp" || warn "macos-intel timestamp clang failed"
   else
-    warn "macos-intel clang cross failed — placeholder (needs macOS SDK)"
+    warn "macos-intel clang cross failed — placeholder (needs macOS SDK / osxcross)"
     echo "Placeholder: clang x86_64-apple-macos11 needs SDK at $VERSION" > dist/release/macos-intel/datetime.placeholder
     echo "Placeholder" > dist/release/macos-intel/timestamp.placeholder
   fi
 else
-  warn "clang not available for macos-intel"
+  warn "clang/zig not available for macos-intel"
   echo "Placeholder" > dist/release/macos-intel/datetime.placeholder
 fi
 
 # macOS ARM (Apple Silicon)
 mkdir -p dist/release/macos-arm
-if command -v clang >/dev/null 2>&1; then
+if command -v zig >/dev/null 2>&1; then
+  if zig cc --target=aarch64-macos -O2 -Wall -Wextra -std=c99 -o dist/release/macos-arm/datetime "$SRC" 2>/dev/null; then
+    ok "macos-arm/datetime (zig aarch64-macos)"
+    zig cc --target=aarch64-macos -DDATETIME_TIMESTAMP_BUILD -O2 -Wall -Wextra -std=c99 -o dist/release/macos-arm/timestamp "$SRC" 2>/dev/null && ok "macos-arm/timestamp" || warn "macos-arm timestamp zig failed"
+  else
+    warn "macos-arm zig cross failed — placeholder"
+    echo "Placeholder: zig aarch64-macos needs SDK at $VERSION" > dist/release/macos-arm/datetime.placeholder
+    echo "Placeholder" > dist/release/macos-arm/timestamp.placeholder
+  fi
+elif command -v clang >/dev/null 2>&1; then
   if clang --target=arm64-apple-macos11 -O2 -Wall -Wextra -std=c99 "$SRC" -o dist/release/macos-arm/datetime 2>/dev/null; then
     ok "macos-arm/datetime (clang arm64-apple-macos11)"
     clang --target=arm64-apple-macos11 -DDATETIME_TIMESTAMP_BUILD -O2 -Wall -Wextra -std=c99 "$SRC" -o dist/release/macos-arm/timestamp 2>/dev/null && ok "macos-arm/timestamp" || warn "macos-arm timestamp clang failed"
@@ -240,7 +285,7 @@ if command -v clang >/dev/null 2>&1; then
     echo "Placeholder" > dist/release/macos-arm/timestamp.placeholder
   fi
 else
-  warn "clang not available for macos-arm"
+  warn "clang/zig not available for macos-arm"
   echo "Placeholder" > dist/release/macos-arm/datetime.placeholder
 fi
 

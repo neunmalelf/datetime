@@ -1,9 +1,10 @@
 # Project metadata
 [project]
 name = "datetime"
-version = "2.0.20260915170008"
+version = "2.0.20260915181840"
 standard = "C99"
 description = "Print the current local datetime in the host machine's timezone. GNU date compatible: supports -d/--date, --debug, -f/--file, -I/--iso-8601, --resolution, -R/--rfc-email, --rfc-3339, -r/--reference, -s/--set, -u/--utc/--universal, +FORMAT with full % sequences, plus legacy -hr/-c/iso-basic/-cd/-cdb/-od/-odb/-wd/-wdb/--timestamp."
+license = "MIT"
 
 # Source files and build output
 [source]

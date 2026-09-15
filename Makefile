@@ -214,7 +214,7 @@ dist: docs $(SRC) $(srcdir)/scripts/check-security.sh $(srcdir)/scripts/gen-docs
 	@$(MKDIR_P) dist
 	@dir=datetime-$(VERSION); \
 	rm -rf $$dir; mkdir -p $$dir; \
-	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $$dir/ 2>/dev/null || true; \
+	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $(srcdir)/LICENSE $$dir/ 2>/dev/null || true; \
 	mkdir -p $$dir/man/man1 $$dir/tldr $$dir/shell $$dir/scripts; cp -p $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $(srcdir)/tldr/timestamp.md $$dir/tldr/ 2>/dev/null || true; cp -p $(srcdir)/shell/datetime.bash $(srcdir)/shell/timestamp.bash $(srcdir)/shell/datetime.zsh $(srcdir)/shell/timestamp.zsh $(srcdir)/shell/datetime.fish $(srcdir)/shell/timestamp.fish $$dir/shell/ 2>/dev/null || true; cp -p $(srcdir)/scripts/gen-docs.py $(srcdir)/scripts/release.sh $$dir/scripts/ 2>/dev/null || true; \
 	tar -czf dist/$$dir.tar.gz $$dir; rm -rf $$dir; echo "Created dist/$$dir.tar.gz"
 

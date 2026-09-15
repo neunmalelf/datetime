@@ -1,5 +1,31 @@
 2026-09-15  Neun MalElf  <neunmalelf@gmail.com>
 
+	* datetime.c (__version__): Bump to 2.0.20260915181840.
+	* project.toml, README.md, manual.texi: Sync version.
+	* shell/datetime.zsh, shell/timestamp.zsh, shell/datetime.fish,
+	* shell/timestamp.fish: zsh/fish completions for both commands.
+	* Makefile (zshdir, fishdir, install, dist): zsh/fish install
+	and dist in dist/.
+	* scripts/release.sh, Makefile (release): New release target
+	cross-builds linux amd64/arm64, windows amd64/arm64, macos
+	intel/arm into dist/release/ and per-platform tarballs in dist/.
+	* NEWS: Add 2.0.20260915181840 entry.
+
+2026-09-15  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (__version__): Bump to 2.0.20260915170008.
+	* project.toml, README.md, manual.texi: Sync version.
+	* shell/datetime.zsh, shell/timestamp.zsh, shell/datetime.fish,
+	* shell/timestamp.fish: zsh/fish completions for both commands.
+	* Makefile (zshdir, fishdir, install, dist): zsh/fish install
+	and dist in dist/.
+	* scripts/release.sh, Makefile (release): New release target
+	cross-builds linux amd64/arm64, windows amd64/arm64, macos
+	intel/arm into dist/release/ and per-platform tarballs in dist/.
+	* NEWS: Add 2.0.20260915170008 entry.
+
+2026-09-15  Neun MalElf  <neunmalelf@gmail.com>
+
 	* datetime.c (__version__): Bump to 2.0.20260915165318.
 	* project.toml, README.md, manual.texi: Sync version.
 	* shell/datetime.zsh, shell/timestamp.zsh, shell/datetime.fish,

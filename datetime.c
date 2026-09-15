@@ -3,6 +3,9 @@
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 700
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -23,9 +26,59 @@
 #include <sys/time.h>
 #endif
 
+#ifdef _WIN32
+/* Windows shims for POSIX functions not in mingw/zig Windows headers.
+   strptime is not available on mingw — provide stub that always fails,
+   so parsing falls back to other methods (GNU date fallback, etc.). */
+static char *
+win_strptime (const char *s, const char *fmt, struct tm *tm)
+{
+  (void) s;
+  (void) fmt;
+  (void) tm;
+  return NULL;
+}
+
+#define strptime win_strptime
+/* timegm is _mkgmtime on Windows */
+#define timegm _mkgmtime
+/* setenv/unsetenv via _putenv */
+static int
+win_setenv (const char *name, const char *value, int overwrite)
+{
+  if (!overwrite && getenv (name))
+    return 0;
+  size_t len = strlen (name) + strlen (value) + 2;
+  char *buf = (char *) malloc (len);
+  if (!buf)
+    return -1;
+  snprintf (buf, len, "%s=%s", name, value);
+  int ret = _putenv (buf);
+  /* _putenv takes ownership on some CRTs, but we free our copy */
+  free (buf);
+  return ret;
+}
+
+#define setenv win_setenv
+static int
+win_unsetenv (const char *name)
+{
+  size_t len = strlen (name) + 2;
+  char *buf = (char *) malloc (len);
+  if (!buf)
+    return -1;
+  snprintf (buf, len, "%s=", name);
+  int ret = _putenv (buf);
+  free (buf);
+  return ret;
+}
+
+#define unsetenv win_unsetenv
+#endif /* _WIN32 */
+
 // Single source of truth for the version (x.y.micro, micro = release date).
 // Kept here on purpose: no -DVERSION_BUILD plumbing, no generated header.
-static const char *__version__ = "2.0.20260915170008";
+static const char *__version__ = "2.0.20260915181840";
 
 static int g_debug = 0;
 static int g_utc = 0;
@@ -1733,7 +1786,9 @@ main (int argc, char **argv)
          The previous #if defined(st_mtim) was always false because st_mtim
          is a struct field, not a preprocessor macro, so nanoseconds were
          silently zeroed.  */
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+#if defined(_WIN32)
+      ts.tv_nsec = 0;
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
       ts.tv_nsec = st.st_mtimespec.tv_nsec;
 #elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L
       ts.tv_nsec = st.st_mtim.tv_nsec;
