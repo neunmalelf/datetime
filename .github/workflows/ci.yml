@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    env:
+      CC: ${{ matrix.compiler }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Build (zero warnings)
+        run: |
+          make clean
+          make 2>&1 | tee build.log
+          ! grep -E 'warning|error' build.log
+
+      - name: Syntax check
+        run: make check-syntax
+
+      - name: Valgrind (incl. error paths)
+        run: make check-mem
+
+      - name: Bash test suites
+        run: |
+          ./tests/_test_datetime
+          ./tests/_test_combinatorial
+          ./tests/_test_matrix
+
+      - name: Python test suites
+        run: python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v
+
+      - name: Distribution tarball
+        run: |
+          make dist
+          tar -tzf dist/datetime-2.0.*.tar.gz > /dev/null
+          rm -f dist/datetime-2.0.*.tar.gz
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (zero warnings, clang)
+        run: |
+          make clean
+          make 2>&1 | tee build.log
+          ! grep -E 'warning|error' build.log
+
+      # valgrind is unavailable on macOS >= 10.15; check-mem skips itself
+      - name: Checks (valgrind skip expected on Darwin)
+        run: make check-syntax check-mem
+
+      - name: Bash test suites
+        run: |
+          ./tests/_test_datetime
+          ./tests/_test_combinatorial
+          ./tests/_test_matrix
+
+      - name: Python test suites
+        run: python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MinGW-w64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            gcc
+            python
+            python-pip
+            diffutils
+
+      - name: Build (zero warnings) - exercises getopt.h, _mkgmtime, _timezone paths
+        run: |
+          make clean
+          make 2>&1 | tee build.log
+          ! grep -E 'warning|error' build.log
+
+      - name: Syntax check
+        run: make check-syntax
+
+      - name: Python test suites
+        # _test_datetime/_test_combinatorial depend on GNU date/find/tr
+        # (coreutils) and are Linux/macOS-only; on Windows the pytest suites
+        # cover parsing, formats, and combinatorial behavior.
+        run: |
+          python -m pip install pytest
+          python -m pytest tests/test_granular.py tests/test_exhaustive.py -v

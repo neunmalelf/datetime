@@ -25,7 +25,7 @@
 
 // Single source of truth for the version (x.y.micro, micro = release date).
 // Kept here on purpose: no -DVERSION_BUILD plumbing, no generated header.
-static const char *__version__ = "2.0.202609141614";
+static const char *__version__ = "2.0.20260915170008";
 
 static int g_debug = 0;
 static int g_utc = 0;
@@ -118,7 +118,8 @@ print_usage (const char *prog)
 	  prog, prog);
 #ifdef DATETIME_TIMESTAMP_BUILD
   printf ("Without FORMAT, timestamp prints UTC as YYYYMMDDhhmmssZ.\n");
-  printf ("All datetime options (-d, -f, -I, -R, +FORMAT, etc.) work identically.\n");
+  printf
+    ("All datetime options (-d, -f, -I, -R, +FORMAT, etc.) work identically.\n");
 #endif
   printf ("\n");
 

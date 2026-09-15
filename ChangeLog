@@ -1,3 +1,39 @@
+2026-09-15  Neun MalElf  <neunmalelf@gmail.com>
+
+	* datetime.c (__version__): Bump to 2.0.20260915165318.
+	* project.toml, README.md, manual.texi: Sync version.
+	* shell/datetime.zsh, shell/timestamp.zsh, shell/datetime.fish,
+	* shell/timestamp.fish: zsh/fish completions for both commands.
+	* Makefile (zshdir, fishdir, install, dist): zsh/fish install
+	and dist in dist/.
+	* scripts/release.sh, Makefile (release): New release target
+	cross-builds linux amd64/arm64, windows amd64/arm64, macos
+	intel/arm into dist/release/ and per-platform tarballs in dist/.
+	* NEWS: Add 2.0.20260915165318 entry.
+
+2026-09-15  Neun MalElf  <neunmalelf@gmail.com>
+
+	* shell/datetime.zsh, shell/datetime.fish: New zsh and fish
+	completions for datetime/timestamp, parity with shell/datetime.bash
+	(--date/--file/--iso-8601/--rfc-3339/-r/-s/-u/--resolution
+	--debug/--help/--version plus legacy -hr/-c/-cd/-cdb/-od/-odb
+	-wd/-wdb/--timestamp, +FORMAT, iso-basic, -I* attached values).
+	* Makefile (zshdir, fishdir): New install locations.
+	(install, install-strip, uninstall): Install zsh as _datetime/_timestamp
+	to $(zshdir) and fish as datetime.fish/timestamp.fish to $(fishdir);
+	uninstall removes them.
+	(dist): Create dist/ subfolder and write tarball as dist/datetime-$(VERSION).tar.gz;
+	include shell/datetime.zsh and shell/datetime.fish in the tarball.
+	(realclean): Remove dist/*.tar dist/*.tar.gz.
+	* _make (push_release): Look for dist/datetime-$(VERSION).tar.gz.
+	* .github/workflows/ci.yml (Distribution tarball): Check dist/ tarball.
+	* .gitignore: Ignore *.tar in addition to *.tar.gz; keep dist/*.tar.gz
+	and dist/*.tar via !dist/ exceptions so releases can be kept in
+	dist/ (make dist now writes there).
+	* README.md (What it is, Help files): Document bash/zsh/fish
+	completions.
+	* NEWS, project.toml, datetime.c (__version__): Bump to 2.0.20260915163847.
+
 2026-09-13  Neun MalElf  <neunmalelf@gmail.com>
 
 	* datetime.c (scan_operand): Only classify digit-run and MMDDhhmm

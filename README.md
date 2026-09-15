@@ -4,7 +4,14 @@ A small C99 program that prints the current datetime, computed in the host machi
 
 Legacy formats are kept for backward compatibility; new options follow the GNU `date` interface.
 
-> **Build vs. deploy:** `make` only builds `datetime` + `timestamp` into the repo root – it does **not** install anything. Run `make install` (optionally with `PREFIX=...`) to deploy the binaries, man page and bash completions; `make uninstall` removes them.
+> **Scope:** **22** long options + **15** short + **9** legacy formats + **47** `+FORMAT` sequences = **30+** distinct invocations 
+# timestmap 
+
+A small C99 programm that prints the current UTC datetime in the format: YYYYMMDDhhmmssZ
+
+![datetime showcase](showcase.gif)
+
+> **Build vs. deploy:** `make` only builds `datetime` + `timestamp` into the repo root - it does **not** install anything. Run `sudo make install` for system `prefix=/usr/local` (or `make install` with `PREFIX=...` / `./_make install` for user-local without `sudo`) to deploy the binaries, man page and bash/zsh/fish completions; `sudo make uninstall` (or user `make uninstall`) removes them.
 
 ## Index
 
@@ -16,13 +23,13 @@ Legacy formats are kept for backward compatibility; new options follow the GNU `
 * [Tests](#tests)
 * [Memory and security checks](#memory-and-security-checks)
 * [Build](#build)
-  * [macOS (Darwin) – Intel, Apple Silicon & external drives](#macos-darwin--intel-apple-silicon--external-drives)
+  * [macOS (Darwin) - Intel, Apple Silicon & external drives](#macos-darwin--intel-apple-silicon--external-drives)
 * [Install (explicit)](#install-explicit)
 * [Clean](#clean)
 * [Example usage](#example-usage)
   * [Basic and version/help](#basic-and-versionhelp)
   * [Legacy output formats](#legacy-output-formats-kept-datetimec52-formats)
-  * [GNU date compatible – date source](#gnu-date-compatible--date-source)
+  * [GNU date compatible - date source](#gnu-date-compatible--date-source)
   * [File and reference](#file-and-reference)
   * [ISO-8601 / RFC / resolution / UTC](#iso-8601--rfc--resolution--utc)
   * [Custom FORMAT](#custom-format-all-gnu-sequences-flags-width-modifiers)
@@ -133,6 +140,7 @@ printf "2020-01-02\n2020-01-03\n" | ./datetime -f - +"%F"  # stdin via -
 ./datetime -u -d 'TZ="America/Los_Angeles" 09:00 next Fri'  # TZ prefix
 ./datetime --set='2020-01-02 00:00:00'               # set system time (needs root)
 ./datetime 09091100                                 # MMDDhhmm form (set)
+./timestamp 20260915164154Z
 ```
 
 ## Implementation notes
@@ -142,7 +150,7 @@ printf "2020-01-02\n2020-01-03\n" | ./datetime -f - +"%F"  # stdin via -
   * `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS`, `YYYY/MM/DD`, `MM/DD/YY`, ISO `T` variants, RFC 2822/5322
   * `now`, `today`, `yesterday`, `tomorrow`
   * Any string understood by host GNU `date -d` as fallback (including relative `next Fri`, `+1 day`, `2 weeks ago`)
-  * `TZ="Zone" <STRING>` prefix – temporarily sets `TZ` for parsing and formatting
+  * `TZ="Zone" <STRING>` prefix - temporarily sets `TZ` for parsing and formatting
 * **Timezone handling**: `-u` uses `gmtime_r`; otherwise `localtime_r`. `tm_gmtoff` is used to synthesize `%z`, `%:z`, `%::z`, `%:::z` portably when `strftime` lacks `%:z`.
 * **ISO-8601 / RFC-3339**: `seconds` and `ns` include `%:z`; `ns` includes `.%N`.
 * **Mutual exclusivity** enforced for `--date`/`--file`/`--reference`/`--resolution`.
@@ -161,25 +169,25 @@ into `make check`:
 
 Current totals: 693 checks (140 bash + 267 matrix + 284 combinatorial + 40 Python with 244 subtests):
 
-* `tests/_test_matrix` – 267-case differential suite: every option and an option-combination matrix, each compared against the installed GNU `date` with compatible arguments (same exit codes, same stdout; ns-resolution and `-I ns`/`--rfc-3339=ns` compared with clock-race tolerance). Options where we deliberately deviate from or extend GNU (compact 14-digit dates, bare `TZ=` prefix, `-I=seconds` spelling, dot instead of comma in ISO ns) are asserted against the documented behavior instead. Also prints one line per case under `--details`.
+* `tests/_test_matrix` - 267-case differential suite: every option and an option-combination matrix, each compared against the installed GNU `date` with compatible arguments (same exit codes, same stdout; ns-resolution and `-I ns`/`--rfc-3339=ns` compared with clock-race tolerance). Options where we deliberately deviate from or extend GNU (compact 14-digit dates, bare `TZ=` prefix, `-I=seconds` spelling, dot instead of comma in ISO ns) are asserted against the documented behavior instead. Also prints one line per case under `--details`.
   ```sh
   ./tests/_test_matrix [--details]
   ```
-* `tests/_test_datetime` – 124 bash tests (legacy, GNU options, FORMAT flags, edge cases, security). Run from repo root:
+* `tests/_test_datetime` - 124 bash tests (legacy, GNU options, FORMAT flags, edge cases, security). Run from repo root:
   ```sh
   ./tests/_test_datetime
   ```
-* `tests/_test_combinatorial` – 284 bash exhaustive matrix (every alias, every `-I`/`--rfc-3339` variant, all 6 mutually-exclusive pairs + triples, `-u`/`--debug` × each date source, `+FORMAT` × each source, all 47 FORMAT sequences `%%`..`%Z` with/without `-u`, flags `-_0+^#`, width, `E/O`, alias equivalence, error cases, injection/long-input):
+* `tests/_test_combinatorial` - 284 bash exhaustive matrix (every alias, every `-I`/`--rfc-3339` variant, all 6 mutually-exclusive pairs + triples, `-u`/`--debug` × each date source, `+FORMAT` × each source, all 47 FORMAT sequences `%%`..`%Z` with/without `-u`, flags `-_0+^#`, width, `E/O`, alias equivalence, error cases, injection/long-input):
   ```sh
   ./tests/_test_combinatorial
   ```
-* `tests/test_granular.py` – 24 Python `unittest`/`pytest` tests covering the same matrix plus comparison with GNU date behavior:
+* `tests/test_granular.py` - 24 Python `unittest`/`pytest` tests covering the same matrix plus comparison with GNU date behavior:
   ```sh
   python3 -m pytest tests/test_granular.py -v
   # or
   python3 tests/test_granular.py
   ```
-* `tests/test_exhaustive.py` – 16 Python exhaustive matrix (235 subtests via `itertools.product`): legacy singletons, `iso-8601`×5 × short/long, `rfc-3339`×3, `r`/`f`/`s` aliases, `utc` aliases (`-u`/`--utc`/`--universal`), date sources (`@0`/`now`/`today`/fractional/`TZ=`), mutual-exclusivity full `C(4,2)+C(4,3)` matrix, compatible `-u`/`--debug`×each base, all `FORMAT` sequences with/without `-u`, flag×width×`E/O` matrix, error/long-input/injection:
+* `tests/test_exhaustive.py` - 16 Python exhaustive matrix (235 subtests via `itertools.product`): legacy singletons, `iso-8601`×5 × short/long, `rfc-3339`×3, `r`/`f`/`s` aliases, `utc` aliases (`-u`/`--utc`/`--universal`), date sources (`@0`/`now`/`today`/fractional/`TZ=`), mutual-exclusivity full `C(4,2)+C(4,3)` matrix, compatible `-u`/`--debug`×each base, all `FORMAT` sequences with/without `-u`, flag×width×`E/O` matrix, error/long-input/injection:
   ```sh
   python3 -m pytest tests/test_exhaustive.py -v
   # or
@@ -211,7 +219,7 @@ All heap blocks are freed (`All heap blocks were freed -- no leaks are possible`
 
 ## Build
 
-> **C Standard: C99** – This project is written in **strict C99** (`project.toml:5` `standard = "C99"`, `Makefile:2` `CFLAGS ?= -O2 -Wall -Wextra -std=c99`, `datetime.c:1` `// Expose POSIX + GNU timezone functions under strict C99.`). Code compiles with `gcc -std=c99` and only uses the standard C library (`libc`) plus POSIX/GNU extensions exposed via `_DEFAULT_SOURCE` / `_POSIX_C_SOURCE 200809L` / `_XOPEN_SOURCE 700` for `gmtime_r`/`localtime_r`/`timegm`/`strptime`/`clock_gettime` – no external libraries, no C11/C17 features. This guarantees portability to any C99 compiler while still accessing timezone and high-resolution clock APIs. All format handling uses `strftime` with manual fallback for `%N`/`%q`/`%s`/`%z` variants to stay C99-compliant. `project.toml:19` documents `c_standard = "libc"` and `c_posix_features` list.
+> **C Standard: C99** - This project is written in **strict C99** (`project.toml:5` `standard = "C99"`, `Makefile:2` `CFLAGS ?= -O2 -Wall -Wextra -std=c99`, `datetime.c:1` `// Expose POSIX + GNU timezone functions under strict C99.`). Code compiles with `gcc -std=c99` and only uses the standard C library (`libc`) plus POSIX/GNU extensions exposed via `_DEFAULT_SOURCE` / `_POSIX_C_SOURCE 200809L` / `_XOPEN_SOURCE 700` for `gmtime_r`/`localtime_r`/`timegm`/`strptime`/`clock_gettime` - no external libraries, no C11/C17 features. This guarantees portability to any C99 compiler while still accessing timezone and high-resolution clock APIs. All format handling uses `strftime` with manual fallback for `%N`/`%q`/`%s`/`%z` variants to stay C99-compliant. `project.toml:19` documents `c_standard = "libc"` and `c_posix_features` list.
 
 > **GNU C Styleguide:** This codebase follows the [GNU Coding Standards](gnu_c_stileguide.md) (`gnu_c_stileguide.md:8` *Formatting Your Source Code*, `gnu_c_stileguide.md:10` *Clean Use of C Constructs*, `gnu_c_stileguide.md:13` *Program Behaviour*). Compliance is enforced via `Makefile:1` `SHELL = /bin/sh`, standard `prefix`/`bindir`/`mandir` variables `Makefile:5`, `INSTALL_PROGRAM`/`INSTALL_DATA` `Makefile:22`, `distclean`/`TAGS`/`dist` targets `Makefile:55`, function braces in column zero `datetime.c:38` (`debug_log` `(` → `\n{`), `getopt_long` for CLI `datetime.c:779` `Standards for Command Line Interfaces` `gnu_c_stileguide.md:17`, dynamic allocation instead of fixed `4096` limits `datetime.c:480` (`malloc`/`obstack` per `gnu_c_stileguide.md:13`), and Texinfo `manual.texi:1` / `ChangeLog:1` / `NEWS:1`.
 
@@ -235,25 +243,27 @@ On Debian/Ubuntu:
 sudo apt install gcc make valgrind bash coreutils python3 python3-pytest
 ```
 
-Build the binaries (does **not** install – run `make install` separately):
+Build the binaries (does **not** install - run `make install` separately):
 
 ```sh
-make          # builds datetime + timestamp into the repo root
-make install  # installs to $(prefix)/bin, $(prefix)/share/man/man1 + bash completions
+make               # builds datetime + timestamp into the repo root
+sudo make install  # system: $(prefix)/bin, $(prefix)/share/man/man1 + bash/zsh/fish completions (needs sudo for /usr/local)
+# user-local without sudo:
+./_make install    # auto-fallback to ~/sbin + ~/.local/share/man if /usr/local not writable
 ```
 
 Tip: `./_make` shows an interactive menu over all Makefile targets (`./_make --list` to print it, `./_make <target>` to run without the menu, custom `make` args pass through, e.g. `./_make install PREFIX="$HOME"`).
 
-`make` builds only; `make install` deploys. Per the GNU Coding Standards, `prefix` defaults to `/usr/local` – binaries land in `/usr/local/bin` and the man page in `/usr/local/share/man/man1`. To install into your home directory instead, override `PREFIX`:
+`make` builds only; `sudo make install` deploys system-wide. Per the GNU Coding Standards, `prefix` defaults to `/usr/local` - binaries land in `/usr/local/bin` and the man page in `/usr/local/share/man/man1` (needs `sudo`). To install into your home directory without `sudo`, override `PREFIX` or use `./_make install`:
 
 ```sh
 PREFIX="$HOME" make install   # ~/bin/{datetime,timestamp} + ~/.local/share/man/man1/datetime.1
 PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HOME/sbin/share/man
 ```
 
-`DESTDIR` is honored for staged/packaged installs (`make install DESTDIR=/tmp/pkg`), and `make uninstall` removes exactly what `install` laid down. The old behavior (`make` auto-installing to `~/sbin`) was removed in Task 16 per GNU Coding Standards §7.2.2 – `all` and `install` are separate targets.
+`DESTDIR` is honored for staged/packaged installs (`make install DESTDIR=/tmp/pkg` — no `sudo` needed for `/tmp`; `sudo make install DESTDIR=/tmp/pkg` only if `DESTDIR` is protected), and `sudo make uninstall` (or user `make uninstall`) removes exactly what `install` laid down. The old behavior (`make` auto-installing to `~/sbin`) was removed in Task 16 per GNU Coding Standards §7.2.2 - `all` and `install` are separate targets.
 
-The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.202609131714`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
+The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.20260915170008`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
 
 Run the checks (syntax + memory leaks + security + style + test suites + doc drift):
 
@@ -266,35 +276,35 @@ python3 -m pytest tests/test_granular.py tests/test_exhaustive.py -v
 
 The security part (`make check-security`) scans for banned libc APIs (`gets`, `strcpy`, `sprintf`, ...), runs `gcc -fanalyzer`, and an ASan/LeakSanitizer battery over ~30 success/error/stdin paths; UBSan runs when available (skip-with-notice by default, `STRICT=1` to fail instead). Or just run `./_make` and pick the check from the menu.
 
-### macOS (Darwin) – Intel, Apple Silicon & external drives
+### macOS (Darwin) - Intel, Apple Silicon & external drives
 
 > `macOS` is `BSD` (`Darwin`), not `Linux` (`GNU`). `Makefile:1` and `datetime.c:1` handle it, but `install` and `deploy` differ.
 
-**Prerequisites – Xcode CLT + Homebrew:**
+**Prerequisites - Xcode CLT + Homebrew:**
 ```sh
 xcode-select --install                          # clang -std=c99, make, BSD install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 brew install gcc make coreutils bash python3    # GNU make as gmake if needed: brew install make
-# valgrind is NOT supported on macOS ≥10.15 – use ASan/ leaks instead:
+# valgrind is NOT supported on macOS ≥10.15 - use ASan/ leaks instead:
 brew install llvm                               # for clang-format --style=GNU
 ```
 
-**Build – same command, `C99` + `BSD` portable `install`:**
+**Build - same command, `C99` + `BSD` portable `install`:**
 ```sh
 make                                            # builds datetime + timestamp (timestamp defaults to the UTC micro-version format)
 # Makefile:1 SHELL=/bin/sh, Makefile:22 INSTALL = install, INSTALL_PROGRAM = $(INSTALL) -m 0755
-# BSD install has no -D – Makefile:74 uses portable mkdir -p $(DESTDIR)$(bindir) before install
+# BSD install has no -D - Makefile:74 uses portable mkdir -p $(DESTDIR)$(bindir) before install
 ./datetime --version                             # datetime 2.0.2026090909XXXXZ (UTC)
 ```
 
-**Deploy paths – auto-detected (`Makefile:4` `UNAME_S := $(shell uname -s)`):**
+**Deploy paths - auto-detected (`Makefile:4` `UNAME_S := $(shell uname -s)`):**
 
 | Machine | `uname -s` | Default `prefix`/`bindir` (`Makefile:4`) | Real path | Override |
 |---------|------------|-------------------------------------------|-----------|----------|
 | `Intel` `macOS` | `Darwin` | `prefix=/usr/local` → `bindir=/usr/local/bin` | `/usr/local/bin/datetime` | `make prefix=/usr/local` |
 | `Apple Silicon` | `Darwin` + `test -d /opt/homebrew` | `prefix=/opt/homebrew` → `bindir=/opt/homebrew/bin` | `/opt/homebrew/bin/datetime` | `make prefix=/opt/homebrew` |
 | `Linux` / other Unix | `Linux` | `prefix=/usr/local` → `bindir=/usr/local/bin` | `/usr/local/bin/datetime` | `make PREFIX="$HOME" install` → `~/bin/datetime` |
-| `External drive` (common on small `SSD` `Mac`s – `Applications` moved to `/Volumes/External`) | `Darwin` + `df /Applications` → `/Volumes/External` | **Not auto-detected for CLI** – `bindir` stays as above | `/Volumes/External/opt/homebrew/bin` or `/Volumes/External/sbin` | `make prefix=/Volumes/External/opt/homebrew` or `make bindir=/Volumes/External/sbin` or `make bindir=/Volumes/External/Applications/bin` |
+| `External drive` (common on small `SSD` `Mac`s - `Applications` moved to `/Volumes/External`) | `Darwin` + `df /Applications` → `/Volumes/External` | **Not auto-detected for CLI** - `bindir` stays as above | `/Volumes/External/opt/homebrew/bin` or `/Volumes/External/sbin` | `make prefix=/Volumes/External/opt/homebrew` or `make bindir=/Volumes/External/sbin` or `make bindir=/Volumes/External/Applications/bin` |
 
 **How to find the correct `macOS` deploy path when `Applications` is on external:**
 ```sh
@@ -314,22 +324,23 @@ make prefix=/Volumes/External/opt/homebrew install
 make PREFIX="$HOME/sbin" install         # keep classic ~/sbin even on macOS
 ```
 
-**External drive is covered:** `install` uses `$(DESTDIR)$(bindir)` – `prefix`/`bindir`/`mandir` are fully overridable (`make prefix=... install` or `make PREFIX=... install`), and on Homebrew the auto-detected `/opt/homebrew` prefix already follows `brew --prefix` even when Homebrew lives on an external volume. No hard-coded `/Applications` is used for CLI tools – the table above shows how to detect it via `osascript`/`df`/`brew --prefix`.
+**External drive is covered:** `install` uses `$(DESTDIR)$(bindir)` - `prefix`/`bindir`/`mandir` are fully overridable (`make prefix=... install` or `make PREFIX=... install`), and on Homebrew the auto-detected `/opt/homebrew` prefix already follows `brew --prefix` even when Homebrew lives on an external volume. No hard-coded `/Applications` is used for CLI tools - the table above shows how to detect it via `osascript`/`df`/`brew --prefix`.
 
 **`macOS` quirks handled in code:**
 * `datetime.c:22` `#if defined(__linux__) || defined(__APPLE__)` for `<sys/time.h>` (`timespec` in `<time.h>` on `Darwin`, `clock_gettime` ≥10.12, `timegm` ≥10.6, `tm_gmtoff`/`tm_zone` available as `BSD` extension).
-* `datetime.c:20` `#ifdef _WIN32` vs `#else` `#include <getopt.h>` – `macOS` `BSD` `getopt_long` supports `I::` optional arg differently, handled via filtered `argv` before `getopt_long` `datetime.c:860`.
+* `datetime.c:20` `#ifdef _WIN32` vs `#else` `#include <getopt.h>` - `macOS` `BSD` `getopt_long` supports `I::` optional arg differently, handled via filtered `argv` before `getopt_long` `datetime.c:860`.
 * `valgrind` → use `leaks`/`ASan` on `macOS`: `make check-mem` will warn `valgrind not found`, run `clang -fsanitize=address -o /tmp/datetime_asan datetime.c && /tmp/datetime_asan -d "@0"`.
 
 **`Windows` (`MinGW-w64`/`MSYS2`) install paths:** `make install` places `datetime.exe` in `$(HOME)/sbin` and the man page in `$(HOME)/.local/share/man/man1`.
 
 ## Install (explicit)
 
-Installs `datetime`, `timestamp` and the man page to the GNU-standard directories under `prefix` (default `/usr/local`), plus the bash completion script into bash-completion's `completionsdir` (auto-detected via `pkg-config`, fallback `$(prefix)/share/bash-completion/completions`). The two binaries are the same program: `timestamp` is compiled with `-DDATETIME_TIMESTAMP_BUILD` so its **default** output is the UTC `YYYYMMDDhhmmssZ` stamp – every option (`-d`, `-I`, `+FORMAT`, ...) works identically in both. Run-time behavior never depends on `argv[0]`: `datetime --timestamp` selects the same format:
+Installs `datetime`, `timestamp` and the man page to the GNU-standard directories under `prefix` (default `/usr/local`), plus completion scripts for bash (`completionsdir`, auto-detected via `pkg-config`, fallback `$(prefix)/share/bash-completion/completions`), zsh (`$(zshdir)` → `$(prefix)/share/zsh/site-functions` as `_datetime`/`_timestamp`) and fish (`$(fishdir)` → `$(prefix)/share/fish/vendor_completions.d` as `datetime.fish`/`timestamp.fish`). The two binaries are the same program: `timestamp` is compiled with `-DDATETIME_TIMESTAMP_BUILD` so its **default** output is the UTC `YYYYMMDDhhmmssZ` stamp - every option (`-d`, `-I`, `+FORMAT`, ...) works identically in both. Run-time behavior never depends on `argv[0]`: `datetime --timestamp` selects the same format:
 
 ```sh
-make install                # $(prefix)/bin/{datetime,timestamp} + man page + bash completions
-make install DESTDIR=/tmp/pkg  # staged install for packaging
+sudo make install                # system: $(prefix)/bin/{datetime,timestamp} + man page + bash/zsh/fish completions (needs sudo for /usr/local)
+make install DESTDIR=/tmp/pkg    # staged (no sudo for /tmp) — packaging
+sudo make install DESTDIR=/tmp/pkg  # staged to protected DESTDIR
 ```
 
 User-local example:
@@ -347,14 +358,22 @@ make uninstall
 ## Clean
 
 ```sh
-make clean
+make clean       # remove binaries and objects
+make distclean   # also remove info/dvi/config
+make realclean   # also remove tags and tarballs (including dist/*.tar.gz)
 ```
 
-## Example usage
+Releases are kept in `dist/`:
 
-Extensive examples covering every option and `FORMAT` – all are tested in `tests/_test_datetime:1`, `tests/_test_combinatorial:1`, `tests/test_exhaustive.py:1`.
+```sh
+make dist        # creates dist/datetime-$(VERSION).tar.gz (e.g. dist/datetime-2.0.20260915163847.tar.gz)
+```
 
-### Basic and version/help (C99 `datetime --help` is ESC-free, 134 lines)
+## Example usage of datetime and timestamp
+
+Extensive examples covering every option and `FORMAT` - all are tested in `tests/_test_datetime:1`, `tests/_test_combinatorial:1`, `tests/test_exhaustive.py:1`.
+
+### Basic and version/help
 ```sh
 ./datetime                          # default: 20260909103730 (YYYYMMDDhhmmss)
 ./datetime --help                   # full help
@@ -368,7 +387,7 @@ Extensive examples covering every option and `FORMAT` – all are tested in `tes
 ./timestamp --version               # timestamp 2.0.20260909083730Z
 ```
 
-### Legacy output formats (kept, `datetime.c:52` formats[])
+### Legacy output formats
 ```sh
 ./datetime -hr              # 2026-09-09 10:37:30 (human readable)
 ./datetime --human-readable # same
@@ -390,7 +409,7 @@ Extensive examples covering every option and `FORMAT` – all are tested in `tes
 ./datetime --timestamp      # 20260909103730Z (UTC, micro-version format)
 ```
 
-### GNU date compatible – date source
+### GNU date compatible
 ```sh
 ./datetime -d "@0" +"%F %T"                 # epoch 0 UTC -> 1970-01-01 01:00:00 (local) / 00:00:00 with -u
 ./datetime -u -d "@0" +"%F %T %Z"           # 1970-01-01 00:00:00 UTC
@@ -484,12 +503,12 @@ sudo ./datetime --set="2020-01-02" --debug    # with debug
 
 ## Timestamp utility and microversion (`x.y.<UTC>`)
 
-> **TL;DR for humans and LLMs:** `timestamp` = `YYYYMMDDhhmmssZ` – 14 digits + `Z` in **UTC**. It is the **micro-version**. Full version is `MAJOR.MINOR.TIMESTAMP`, e.g. `2.0.20260909083730Z` = major `2`, minor `0`, built `2026-09-09 08:37:30 UTC`. Easy to sort, easy to parse, no ambiguity.
+> **TL;DR for humans and LLMs:** `timestamp` = `YYYYMMDDhhmmssZ` - 14 digits + `Z` in **UTC**. It is the **micro-version**. Full version is `MAJOR.MINOR.TIMESTAMP`, e.g. `2.0.20260909083730Z` = major `2`, minor `0`, built `2026-09-09 08:37:30 UTC`. Easy to sort, easy to parse, no ambiguity.
 
 ### What it is
 
-* **Two builds of one program:** `datetime` (local time `YYYYMMDDhhmmss`) and `timestamp`, the same source compiled with `-DDATETIME_TIMESTAMP_BUILD` so its default output is the UTC `YYYYMMDDhhmmssZ` stamp. Run-time behavior never depends on the program name (GNU Coding Standards §17) – the `--timestamp` flag selects the same format in *every* build.
-* **Shell integration:** `make install` drops the bash completion script (`shell/datetime.bash`) into bash-completion's `completions` directory for both commands; without bash-completion, source it from your `~/.bashrc` (see the header of `shell/datetime.bash`).
+* **Two builds of one program:** `datetime` (local time `YYYYMMDDhhmmss`) and `timestamp`, the same source compiled with `-DDATETIME_TIMESTAMP_BUILD` so its default output is the UTC `YYYYMMDDhhmmssZ` stamp. Run-time behavior never depends on the program name (GNU Coding Standards §17) - the `--timestamp` flag selects the same format in *every* build.
+* **Shell integration:** `sudo make install` drops completion scripts for **bash** (`shell/datetime.bash`), **zsh** (`shell/datetime.zsh` → `$(zshdir)/_datetime` + `_timestamp`), and **fish** (`shell/datetime.fish` → `$(fishdir)/datetime.fish` + `timestamp.fish`) for both commands (system `prefix=/usr/local` needs `sudo`; user-local via `./_make install` or `PREFIX="$HOME" make install` needs no `sudo`); without the completion framework, source them from your `~/.bashrc` / `~/.zshrc` / `~/.config/fish/completions/` (see headers of the files in `shell/`).
 * **Standard Python equivalent:** `python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%SZ'))"`.
 
 ### How to use it
@@ -528,26 +547,26 @@ echo $TS | sed -E 's/([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2}
 
 We **chose this form on purpose** so both humans and LLMs can read it without guessing:
 
-* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, SKILL metadata, `project.toml` `scheme = "x.y.micro"`. Compare `20260909083730Z` < `20260910120000Z` – no parsing needed.
+* **Sortable & filename-safe:** No `-`, `:`, `T`, or spaces. Lexicographic sort = chronological sort. Safe for filenames, Docker tags, SKILL metadata, `project.toml` `scheme = "x.y.micro"`. Compare `20260909083730Z` < `20260910120000Z` - no parsing needed.
 * **Unambiguous timezone:** Trailing `Z` = *Zulu* = UTC (`format = "%Y%m%d%H%M%SZ"` + `gmtime`). No local `CEST`/`PST` confusion. LLM can instantly split: `YYYY` `MM` `DD` `hh` `mm` `ss` `Z`.
 * **Compact but still human-readable:** 14 digits → split `YYYYMMDD` + `hhmmss`. Human scans `20260909` as `2026-09-09`, LLM tokenizes `2026 09 09 08 37 30 Z` without extra punctuation.
 * **Micro-version semantics:** `x.y.micro` → `2.0.202609131714`:
-  * `x.y` = API break / feature, `micro` = release date-time of this exact version. Both live in the single `__version__` constant in `datetime.c` – bump it when releasing; no build-time stamping.
+  * `x.y` = API break / feature, `micro` = release date-time of this exact version. Both live in the single `__version__` constant in `datetime.c` - bump it when releasing; no build-time stamping.
 * **Used everywhere in this repo:**
   * `datetime.c` `__version__` → `datetime --version` → `2.0.202609131714`
-  * `project.toml` `scheme = "x.y.micro"` – docs for humans/LLMs how to interpret `2.0.*`
+  * `project.toml` `scheme = "x.y.micro"` - docs for humans/LLMs how to interpret `2.0.*`
   * SKILL `writing-skills` / `tests-subfolder` prompts use `~/sbin/datetime --timestamp` to generate SKILL `__VERSION__` like `1.0.20260909104000Z`
 
-**For LLM:** Treat `Z` as `UTC`, split `^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$` → `YYYY-MM-DDThh:mm:ssZ` ISO. For human: read `20260909083730Z` as `2026-09-09 08:37:30 UTC` – the exact second this binary was built.
+**For LLM:** Treat `Z` as `UTC`, split `^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$` → `YYYY-MM-DDThh:mm:ssZ` ISO. For human: read `20260909083730Z` as `2026-09-09 08:37:30 UTC` - the exact second this binary was built.
 
 ## Help files
 
 Help is embedded in both binaries and also shipped as manual pages and tldr cheatsheets:
 
 * **Binary help:** `./datetime --help` / `./datetime -h` and `./timestamp --help` / `./timestamp -h` (identical options; `timestamp` defaults to UTC `YYYYMMDDhhmmssZ`).
-* **Man pages:** `man/man1/datetime.1` and `man/man1/timestamp.1` (installed to `$(mandir)/man1/` by `make install`; `timestamp.1` is a `.so` include of `datetime.1`). View with `man datetime` or `man timestamp`.
+* **Man pages:** `man/man1/datetime.1` and `man/man1/timestamp.1` (installed to `$(mandir)/man1/` by `sudo make install` for system `prefix=/usr/local` or user-local via `./_make install`/`PREFIX="$HOME" make install`; `timestamp.1` is a `.so` include of `datetime.1`). View with `man datetime` or `man timestamp`.
 * **tldr pages:** `tldr/datetime.md` and `tldr/timestamp.md`.
-* **Shell completion:** `shell/datetime.bash` – bash completion for both `datetime` and `timestamp` (installed to bash-completion's `completionsdir` as `datetime` and `timestamp`; without bash-completion, source it from `~/.bashrc` – see header of `shell/datetime.bash`).
+* **Shell completion:** `shell/datetime.bash` / `shell/datetime.zsh` / `shell/datetime.fish` - bash / zsh / fish completions for both `datetime` and `timestamp` (installed to bash-completion's `completionsdir` as `datetime`/`timestamp`, zsh's `$(zshdir)` as `_datetime`/`_timestamp`, fish's `$(fishdir)` as `datetime.fish`/`timestamp.fish` by `sudo make install` for system or user-local via `./_make install`/`PREFIX="$HOME" make install`; without the framework, source/copy them from `~/.bashrc` / `~/.zshrc` / `~/.config/fish/completions/` - see headers of the files in `shell/`).
 * **Texinfo manual:** `manual.texi` → `datetime.info` (`make info`).
 
 All help sources are generated from the same binary (`--help` is the single source of truth) and verified by `make check-docs`.

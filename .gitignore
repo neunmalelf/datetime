@@ -1,3 +1,7 @@
+# Keep GitHub workflow tracked despite global ~/.gitignore_global
+!.github/
+!.github/**
+
 # Build artifacts
 datetime
 datetime.exe
@@ -5,6 +9,9 @@ timestamp
 timestamp.exe
 *.o
 *.tar.gz
+!dist/*.tar.gz
+*.tar
+!dist/*.tar
 .pytest_cache/
 __pycache__/
 .opencode/

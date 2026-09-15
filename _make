@@ -183,7 +183,7 @@ push_release() {
     ver=$(make -s dist-version 2>/dev/null) || return 1
     [[ -n $ver ]] || { echo "${RED}could not determine version from datetime.c${R}" ; return 1 ; }
     tag="v$ver"
-    tarball="datetime-$ver.tar.gz"
+    tarball="dist/datetime-$ver.tar.gz"
 
     echo "${C}==> make clean + make (release build)${R}"
     make clean >/dev/null && make || return 1

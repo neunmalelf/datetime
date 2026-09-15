@@ -1,5 +1,53 @@
 GNU datetime NEWS -- history of user-visible changes.
 
+* Version 2.0.20260915165318 (2026-09-15)
+
+** Release: cross-platform binaries + shell integrations
+
+   Binaries for linux-amd64, linux-arm64, windows-amd64,
+   windows-arm64, macos-intel, macos-arm are in
+   dist/datetime-2.0.20260915165318-*.tar.gz (source is
+   dist/datetime-2.0.20260915165318.tar.gz). Each bundles datetime +
+   timestamp plus bash/zsh/fish completions.
+   `make check` passed (full test gate) before tagging.
+
+** Shell integration
+
+   New zsh (shell/datetime.zsh + shell/timestamp.zsh) and fish
+   (shell/datetime.fish + shell/timestamp.fish) completions,
+   parity with bash. `make install` deploys to
+   $(zshdir) and $(fishdir); `make dist` packs them.
+
+** Build and release
+
+   `make release` (this release) bumps __version__ via
+   ~/sbin/timestamp, regenerates docs (man/tldr/README), runs
+   the full test battery, cross-builds 6 platform binaries into
+   dist/release/, and creates per-platform tarballs in dist/.
+   `make dist` writes to dist/datetime-$(VERSION).tar.gz.
+
+
+* Version 2.0.20260915163847 (2026-09-15)
+
+** Shell integration
+
+   New zsh completion `shell/datetime.zsh` (installed as
+   `$(zshdir)/_datetime` and `$(zshdir)/_timestamp`) and fish
+   completion `shell/datetime.fish` (installed as
+   `$(fishdir)/datetime.fish` and `$(fishdir)/timestamp.fish`) with
+   full parity to the existing bash completion: date sources, ISO/RFC
+   formats with value lists, file vs string handling, legacy formats,
+   `+FORMAT` and `iso-basic`, and `-I*` attached values. `make install`
+   now deploys all three shells; `make uninstall` removes them; `make
+   dist` packs them.
+
+** Build and release
+
+   `make dist` now writes the tarball to `dist/datetime-$(VERSION).tar.gz`
+   (creating `dist/` if needed) and `realclean` removes
+   `dist/*.tar.gz`. `_make push` and CI verify the `dist/` tarball.
+   Releases are kept in `dist/` (`make dist` is the source of truth).
+
 * Version 2.0.20260913 (2026-09-13)
 
 ** Changes in behavior

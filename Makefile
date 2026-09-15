@@ -17,6 +17,8 @@ manext = .1
 infodir = $(prefix)/share/info
 # bash-completion's pkg-config path when available, standard fallback else.
 completionsdir = $(shell pkg-config --variable=completionsdir bash-completion 2>/dev/null || echo $(prefix)/share/bash-completion/completions)
+zshdir = $(prefix)/share/zsh/site-functions
+fishdir = $(prefix)/share/fish/vendor_completions.d
 srcdir = .
 
 # OS-specific overrides
@@ -70,7 +72,7 @@ TARGETS := $(TARGET) $(TIMESTAMP)
 
 # Version: the single source of truth is __version__ in datetime.c
 # (x.y.micro).  dist/extract it with grep; no -DVERSION_BUILD plumbing.
-VERSION := $(shell grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' $(srcdir)/datetime.c | head -1 | tr -d '"')
+VERSION := $(shell grep -oE '"[0-9]+\.[0-9]+\.[0-9]+Z?"' $(srcdir)/datetime.c | head -1 | tr -d '"')
 
 all: $(TARGETS)
 
@@ -129,12 +131,23 @@ install: $(TARGETS)
 	@$(MKDIR_P) "$(DESTDIR)$(bindir)"
 	-@$(MKDIR_P) "$(DESTDIR)$(man1dir)" 2>/dev/null || true
 	-@$(MKDIR_P) "$(DESTDIR)$(completionsdir)" 2>/dev/null || true
+	-@$(MKDIR_P) "$(DESTDIR)$(zshdir)" 2>/dev/null || true
+	-@$(MKDIR_P) "$(DESTDIR)$(fishdir)" 2>/dev/null || true
 	$(INSTALL_PROGRAM) $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
 	$(INSTALL_PROGRAM) $(TIMESTAMP) "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/timestamp.1 "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/datetime" 2>/dev/null || true
-	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/datetime.zsh "$(DESTDIR)$(zshdir)/_datetime" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.zsh "$(DESTDIR)$(zshdir)/_timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/datetime.fish "$(DESTDIR)$(fishdir)/datetime.fish" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.fish "$(DESTDIR)$(fishdir)/timestamp.fish" 2>/dev/null || true
+	-@$(MKDIR_P) "$(HOME)/.local/share/tealdeer/pages" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/datetime.md "$(HOME)/.local/share/tealdeer/pages/datetime.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/timestamp.md "$(HOME)/.local/share/tealdeer/pages/timestamp.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/datetime.md "$(HOME)/.local/share/tealdeer/pages/datetime.page.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/timestamp.md "$(HOME)/.local/share/tealdeer/pages/timestamp.page.md" 2>/dev/null || true
 ifeq ($(OS),Windows_NT)
 	-@mkdir -p "$(HOME)/sbin" 2>/dev/null || true
 	-$(INSTALL_PROGRAM) $(TARGET) "$(HOME)/sbin/$(TARGET)" 2>/dev/null || true
@@ -144,18 +157,31 @@ install-strip: $(TARGETS)
 	@$(MKDIR_P) "$(DESTDIR)$(bindir)"
 	-@$(MKDIR_P) "$(DESTDIR)$(man1dir)" 2>/dev/null || true
 	-@$(MKDIR_P) "$(DESTDIR)$(completionsdir)" 2>/dev/null || true
+	-@$(MKDIR_P) "$(DESTDIR)$(zshdir)" 2>/dev/null || true
+	-@$(MKDIR_P) "$(DESTDIR)$(fishdir)" 2>/dev/null || true
 	$(INSTALL_PROGRAM) -s $(TARGET) "$(DESTDIR)$(bindir)/$(TARGET)"
 	$(INSTALL_PROGRAM) -s $(TIMESTAMP) "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/datetime.1 "$(DESTDIR)$(man1dir)/datetime$(manext)"
 	$(INSTALL_DATA) $(srcdir)/man/man1/timestamp.1 "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/datetime" 2>/dev/null || true
-	-$(INSTALL_DATA) $(srcdir)/shell/datetime.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.bash "$(DESTDIR)$(completionsdir)/timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/datetime.zsh "$(DESTDIR)$(zshdir)/_datetime" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.zsh "$(DESTDIR)$(zshdir)/_timestamp" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/datetime.fish "$(DESTDIR)$(fishdir)/datetime.fish" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/shell/timestamp.fish "$(DESTDIR)$(fishdir)/timestamp.fish" 2>/dev/null || true
+	-@$(MKDIR_P) "$(HOME)/.local/share/tealdeer/pages" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/datetime.md "$(HOME)/.local/share/tealdeer/pages/datetime.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/timestamp.md "$(HOME)/.local/share/tealdeer/pages/timestamp.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/datetime.md "$(HOME)/.local/share/tealdeer/pages/datetime.page.md" 2>/dev/null || true
+	-$(INSTALL_DATA) $(srcdir)/tldr/timestamp.md "$(HOME)/.local/share/tealdeer/pages/timestamp.page.md" 2>/dev/null || true
 
 uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(TARGET)"
 	rm -f "$(DESTDIR)$(bindir)/$(TIMESTAMP)"
 	rm -f "$(DESTDIR)$(man1dir)/datetime$(manext)" "$(DESTDIR)$(man1dir)/timestamp$(manext)"
 	rm -f "$(DESTDIR)$(completionsdir)/datetime" "$(DESTDIR)$(completionsdir)/timestamp"
+	rm -f "$(DESTDIR)$(zshdir)/_datetime" "$(DESTDIR)$(zshdir)/_timestamp"
+	rm -f "$(DESTDIR)$(fishdir)/datetime.fish" "$(DESTDIR)$(fishdir)/timestamp.fish"
 	# Remove legacy ~/sbin install if different from bindir
 	@case "$(bindir)" in "$(HOME)/sbin") true;; *) rm -f "$(PREFIX)/$(TARGET)" 2>/dev/null || true;; esac
 ifeq ($(OS),Windows_NT)
@@ -177,7 +203,7 @@ distclean: clean
 
 realclean: distclean
 	rm -f TAGS tags
-	rm -f *.tar *.tar.gz
+	rm -f *.tar *.tar.gz dist/*.tar dist/*.tar.gz
 
 TAGS: $(SRC) $(srcdir)/manual.texi
 	-etags $(SRC) $(srcdir)/manual.texi
@@ -185,11 +211,12 @@ TAGS: $(SRC) $(srcdir)/manual.texi
 tags: TAGS
 
 dist: docs $(SRC) $(srcdir)/scripts/check-security.sh $(srcdir)/scripts/gen-docs.py $(srcdir)/manual.texi $(srcdir)/README.md $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $(srcdir)/tldr/timestamp.md
+	@$(MKDIR_P) dist
 	@dir=datetime-$(VERSION); \
 	rm -rf $$dir; mkdir -p $$dir; \
 	cp -p $(SRC) $(srcdir)/Makefile $(srcdir)/README.md $(srcdir)/project.toml $(srcdir)/manual.texi $(srcdir)/NEWS $(srcdir)/ChangeLog $$dir/ 2>/dev/null || true; \
-	mkdir -p $$dir/man/man1 $$dir/tldr $$dir/shell $$dir/scripts; cp -p $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $(srcdir)/tldr/timestamp.md $$dir/tldr/ 2>/dev/null || true; cp -p $(srcdir)/shell/datetime.bash $$dir/shell/ 2>/dev/null || true; cp -p $(srcdir)/scripts/gen-docs.py $$dir/scripts/ 2>/dev/null || true; \
-	tar -czf $$dir.tar.gz $$dir; rm -rf $$dir; echo "Created $$dir.tar.gz"
+	mkdir -p $$dir/man/man1 $$dir/tldr $$dir/shell $$dir/scripts; cp -p $(srcdir)/man/man1/datetime.1 $(srcdir)/man/man1/timestamp.1 $$dir/man/man1/ 2>/dev/null || true; cp -p $(srcdir)/tldr/datetime.md $(srcdir)/tldr/timestamp.md $$dir/tldr/ 2>/dev/null || true; cp -p $(srcdir)/shell/datetime.bash $(srcdir)/shell/timestamp.bash $(srcdir)/shell/datetime.zsh $(srcdir)/shell/timestamp.zsh $(srcdir)/shell/datetime.fish $(srcdir)/shell/timestamp.fish $$dir/shell/ 2>/dev/null || true; cp -p $(srcdir)/scripts/gen-docs.py $(srcdir)/scripts/release.sh $$dir/scripts/ 2>/dev/null || true; \
+	tar -czf dist/$$dir.tar.gz $$dir; rm -rf $$dir; echo "Created dist/$$dir.tar.gz"
 
 # Syntax check only (no code generation).
 check-syntax:
@@ -240,3 +267,16 @@ check-test: $(TARGETS)
 	@./_tests
 
 check: check-syntax check-mem check-security check-style check-test check-docs
+
+# Full release: version bump via ~/sbin/timestamp, docs, full test, cross-builds for
+# linux amd64/arm64, windows amd64/arm64, macos intel/arm, per-platform tarballs in dist/
+release:
+	bash $(srcdir)/scripts/release.sh
+
+release-dry:
+	bash $(srcdir)/scripts/release.sh --dry-run
+
+# Alias for ./_make push (git push + GitHub release, gated on make check)
+push:
+	bash $(srcdir)/_make push
+.PHONY: release release-dry push

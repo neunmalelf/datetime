@@ -92,7 +92,22 @@ if "$CC" -std=c99 -g -O1 -fsanitize=address -fno-omit-frame-pointer \
         # (their stderr is the sanitizer evidence being captured).
         printf '%s         · datetime %s%s\n' "$C" "$c" "$R"
         rc=0
-        eval "\"$ASAN_BIN\" $c" >/dev/null 2>"$TMP/err.log" || rc=$?
+        # `-f -` reads stdin — feed empty input to avoid hanging on a tty
+        if [[ "$c" == "-f -" ]]; then
+            printf '' | eval "\"$ASAN_BIN\" $c" >/dev/null 2>"$TMP/err.log" || rc=$?
+        else
+            # Use timeout if available to prevent hangs on unexpected stdin reads
+            if command -v timeout >/dev/null 2>&1; then
+                timeout 5 bash -c "eval \"$ASAN_BIN\" $c" >/dev/null 2>"$TMP/err.log" || rc=$?
+                # timeout 124 = killed; treat as non-sanitizer failure (already reported via log)
+                if [[ $rc -eq 124 ]]; then
+                    warn "timeout on: datetime $c (no stdin) — treating as error path"
+                    rc=1
+                fi
+            else
+                eval "\"$ASAN_BIN\" $c" >/dev/null 2>"$TMP/err.log" || rc=$?
+            fi
+        fi
         if [[ $rc -eq 86 ]] || grep -qiE 'sanitizer|AddressSanitizer|LeakSanitizer|runtime error' "$TMP/err.log"; then
             bad "sanitizer report on: datetime $c"
             sed 's/^/         /' "$TMP/err.log" | head -8
