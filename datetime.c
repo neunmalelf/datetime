@@ -78,7 +78,7 @@ win_unsetenv (const char *name)
 
 // Single source of truth for the version (x.y.micro, micro = release date).
 // Kept here on purpose: no -DVERSION_BUILD plumbing, no generated header.
-static const char *__version__ = "2.0.20260915181840";
+static const char *__version__ = "2.0.20260915193300";
 
 static int g_debug = 0;
 static int g_utc = 0;

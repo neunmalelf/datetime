@@ -1,5 +1,59 @@
 GNU datetime NEWS -- history of user-visible changes.
 
+* Version 2.0.20260915193300 (2026-09-15)
+
+** Release: cross-platform binaries + shell integrations
+
+   Binaries for linux-amd64, linux-arm64, windows-amd64,
+   windows-arm64, macos-intel, macos-arm are in
+   dist/datetime-2.0.20260915193300-*.tar.gz (source is
+   dist/datetime-2.0.20260915193300.tar.gz). Each bundles datetime +
+   timestamp plus bash/zsh/fish completions.
+   `make check` passed (full test gate) before tagging.
+
+** Shell integration
+
+   New zsh (shell/datetime.zsh + shell/timestamp.zsh) and fish
+   (shell/datetime.fish + shell/timestamp.fish) completions,
+   parity with bash. `make install` deploys to
+   $(zshdir) and $(fishdir); `make dist` packs them.
+
+** Build and release
+
+   `make release` (this release) bumps __version__ via
+   ~/sbin/timestamp, regenerates docs (man/tldr/README), runs
+   the full test battery, cross-builds 6 platform binaries into
+   dist/release/, and creates per-platform tarballs in dist/.
+   `make dist` writes to dist/datetime-$(VERSION).tar.gz.
+
+
+* Version 2.0.20260915193158 (2026-09-15)
+
+** Release: cross-platform binaries + shell integrations
+
+   Binaries for linux-amd64, linux-arm64, windows-amd64,
+   windows-arm64, macos-intel, macos-arm are in
+   dist/datetime-2.0.20260915193158-*.tar.gz (source is
+   dist/datetime-2.0.20260915193158.tar.gz). Each bundles datetime +
+   timestamp plus bash/zsh/fish completions.
+   `make check` passed (full test gate) before tagging.
+
+** Shell integration
+
+   New zsh (shell/datetime.zsh + shell/timestamp.zsh) and fish
+   (shell/datetime.fish + shell/timestamp.fish) completions,
+   parity with bash. `make install` deploys to
+   $(zshdir) and $(fishdir); `make dist` packs them.
+
+** Build and release
+
+   `make release` (this release) bumps __version__ via
+   ~/sbin/timestamp, regenerates docs (man/tldr/README), runs
+   the full test battery, cross-builds 6 platform binaries into
+   dist/release/, and creates per-platform tarballs in dist/.
+   `make dist` writes to dist/datetime-$(VERSION).tar.gz.
+
+
 * Version 2.0.20260915181840 (2026-09-15)
 
 ** Release: cross-platform binaries + shell integrations

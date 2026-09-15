@@ -103,9 +103,9 @@ if [[ ${SKIP_CHECK:-0} != 1 ]]; then
   tail -f "$LOG" &
   TAIL_PID=$!
   # Ensure tail is killed on exit
-  trap 'kill $TAIL_PID 2>/dev/null; wait $TAIL_PID 2>/dev/null; rm -f "$LOG"' EXIT
+  trap 'kill $TAIL_PID 2>/dev/null || true; wait $TAIL_PID 2>/dev/null || true; rm -f "$LOG"' EXIT
   if ! make check >"$LOG" 2>&1; then
-    kill $TAIL_PID 2>/dev/null; wait $TAIL_PID 2>/dev/null
+    kill $TAIL_PID 2>/dev/null || true; wait $TAIL_PID 2>/dev/null || true
     trap - EXIT
     echo
     warn "make check log tail (last 80 lines):"
@@ -113,7 +113,7 @@ if [[ ${SKIP_CHECK:-0} != 1 ]]; then
     rm -f "$LOG"
     fail "make check failed — aborting release (bypass with SKIP_CHECK=1)"
   fi
-  kill $TAIL_PID 2>/dev/null; wait $TAIL_PID 2>/dev/null
+  kill $TAIL_PID 2>/dev/null || true; wait $TAIL_PID 2>/dev/null || true
   trap - EXIT
   rm -f "$LOG"
   ok "make check — all gates passed"

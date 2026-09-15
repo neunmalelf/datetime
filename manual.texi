@@ -2,7 +2,7 @@
 @setfilename datetime.info
 @settitle datetime Manual
 @documentencoding UTF-8
-@set VERSION 2.0.20260915181840
+@set VERSION 2.0.20260915193300
 
 @titlepage
 @title datetime

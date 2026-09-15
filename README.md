@@ -263,7 +263,7 @@ PREFIX="$HOME/sbin" make install  # classic ~/sbin layout, man page still in $HO
 
 `DESTDIR` is honored for staged/packaged installs (`make install DESTDIR=/tmp/pkg` — no `sudo` needed for `/tmp`; `sudo make install DESTDIR=/tmp/pkg` only if `DESTDIR` is protected), and `sudo make uninstall` (or user `make uninstall`) removes exactly what `install` laid down. The old behavior (`make` auto-installing to `~/sbin`) was removed in Task 16 per GNU Coding Standards §7.2.2 - `all` and `install` are separate targets.
 
-The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.20260915181840`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
+The version is a single hardcoded constant, `__version__` in `datetime.c` (currently `2.0.20260915193300`). Bump it there when releasing; there is no generated header or compiler define involved. See it with `./datetime --version`.
 
 Run the checks (syntax + memory leaks + security + style + test suites + doc drift):
 
